@@ -1,0 +1,6 @@
+setup.py
+sesa_str.egg-info/PKG-INFO
+sesa_str.egg-info/SOURCES.txt
+sesa_str.egg-info/dependency_links.txt
+sesa_str.egg-info/requires.txt
+sesa_str.egg-info/top_level.txt
