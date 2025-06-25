@@ -7,7 +7,7 @@ __pycache__/
 *.so
 
 # Distribution / packaging
-streamlit/secrets.toml
+sesa-fronthand/streamlit/secrets.toml
 .Python
 build/
 develop-eggs/
