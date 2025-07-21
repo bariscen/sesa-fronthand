@@ -1,7 +1,8 @@
 import streamlit as st
+import os
 from pathlib import Path
 
-# Bu dosyanın bulunduğu dizin (örneğin: pages/page1.py)
+# Bu dosyanın bulunduğu dizin
 current_dir = Path(__file__).parent.parent
 
 # row-data yolunu oluştur
@@ -18,16 +19,16 @@ if 'logo_image_path' not in st.session_state:
 if st.session_state.logo_image_path:
     try:
         st.image(st.session_state.logo_image_path, width=200)
-    except:
+    except Exception as e:
         st.warning("Logo yüklenemedi.")
 else:
     st.warning("Logo dosyası bulunamadı.")
 
-# Sayfa arka planını ayarla
+# Arka plan rengi
 st.markdown("""
     <style>
     .stApp {
-        background-color: #d3d3d3;
+        background-color: #d3d3d3; /* Açık gri */
     }
     </style>
     """, unsafe_allow_html=True)
@@ -51,24 +52,19 @@ div.stButton > button {
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("📈 Sipariş Tahminleri"):
+    if st.button("📊 Sektörel Analiz"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/gelecek.py")
+            st.switch_page("pages/sektor_ozet.py")
 
 with col2:
-    if st.button("🕵️‍♀️ Beklenen ama Gelmeyen Siparişler"):
+    if st.button("👥 Sektörlerin Yıllık Analiz"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/dikkat.py")
+            st.switch_page("pages/sektor_yillik.py")
 
-# --- 2 Buton Altta ---
-col3, col4 = st.columns(2)
+# --- 1 Buton Altta Ortalanmış ---
+col_left, col_center, col_right = st.columns([1, 2, 1])
 
-with col3:
-    if st.button("📊 İstatistikler"):
+with col_center:
+    if st.button("📉 Sektörel Eski Yıllar Karşılaştırma"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/stats.py")
-
-with col4:
-    if st.button("🏭 Sektörel Değişimler"):
-        with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/sektor.py")
+            st.switch_page("pages/sektor_degisim.py")
