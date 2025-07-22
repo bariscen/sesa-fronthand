@@ -10,8 +10,8 @@ def get_gcs_client():
     """Google Cloud Storage istemcisini başlatır."""
     try:
         # Streamlit Cloud'da 'gcp_service_account' sırrı varsa onu al
-        gcp_service_account_info = st.secrets["gcp_service_account"]
-
+        gcp_service_account_info = st.secrets['gcp_service_account']
+        st.write(gcp_service_account_info)
         # Artık json.loads() kullanmaya gerek yok, çünkü st.secrets doğrudan bir AttrDict (sözlük benzeri) döndürüyor.
         # storage.Client.from_service_account_info() doğrudan bu sözlüğü kabul eder.
         client = storage.Client.from_service_account_info(gcp_service_account_info)
