@@ -83,6 +83,52 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
+import streamlit as st
+
+import streamlit as st
+
+# Sayfa geçiş fonksiyonu
+def go_to_page1():
+    st.session_state.go_page1 = True
+
+if 'go_page1' not in st.session_state:
+    st.session_state.go_page1 = False
+
+if st.session_state.go_page1:
+    st.session_state.go_page1 = False
+    st.experimental_rerun()
+    st.switch_page("page1")
+
+
+
+st.markdown("""
+    <style>
+    div.stButton > button {
+        position: fixed !important;
+        top: 10px !important;
+        right: 10px !important;
+        background-color: #444444 !important;
+        color: #FFBF00 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        transition: background-color 0.3s ease !important;
+    }
+    div.stButton > button:hover {
+        background-color: #555555 !important;
+        color: #FFBF00 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+if st.button("Satış Menüsüne Dön"):
+    st.switch_page("pages/page1.py")
+
+
 
 
 gelecek = read_gcs_blob_content("gelecek")
@@ -96,4 +142,5 @@ else:
 
 # Veriyi göster
 if gelecek is not None:
+    st.subheader("1️⃣ Önümüzdeki 3 Haftanın Sipariş Tahminleri")
     st.dataframe(gelecek)

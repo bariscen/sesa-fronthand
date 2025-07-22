@@ -70,6 +70,36 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
+st.markdown("""
+    <style>
+    div.stButton > button {
+        position: fixed !important;
+        top: 10px !important;
+        right: 10px !important;
+        background-color: #444444 !important;
+        color: #FFBF00 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        transition: background-color 0.3s ease !important;
+    }
+    div.stButton > button:hover {
+        background-color: #555555 !important;
+        color: #FFBF00 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+if st.button("Satış Menüsüne Dön"):
+    st.switch_page("pages/page1.py")
+if st.button("İstatistikler", key="btn_sector"):
+    st.switch_page("pages/stats.py")
+
+
 
 yillar = read_gcs_blob_content("stat")
 

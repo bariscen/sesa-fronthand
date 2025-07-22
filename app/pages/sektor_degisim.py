@@ -81,6 +81,38 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
+
+
+st.markdown("""
+    <style>
+    div.stButton > button {
+        position: fixed !important;
+        top: 10px !important;
+        right: 10px !important;
+        background-color: #444444 !important;
+        color: #FFBF00 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        transition: background-color 0.3s ease !important;
+    }
+    div.stButton > button:hover {
+        background-color: #555555 !important;
+        color: #FFBF00 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+if st.button("Satış Menüsüne Dön"):
+    st.switch_page("pages/page1.py")
+if st.button("Sektöre Git", key="btn_sector"):
+    st.switch_page("pages/sektor.py")
+
+
 sektor = read_gcs_blob_content("sektor")
 
 if sektor is not None:
@@ -96,7 +128,7 @@ if sektor is not None and not sektor.empty:
     sektor['Month'] = sektor['month_start'].dt.month
     sektor['Month_Name'] = sektor['month_start'].dt.strftime('%b')
 
-    st.header("📈 Önümüzdeki Ayın Geçen Senelerde ki Performansı")
+    st.header("📈 Önümüzdeki Ayın Geçen Senelerdeki Performansı")
 
     # --- Analiz Edilecek Hedef Ayı Belirleme ---
     last_data_month = sektor['month_start'].max()
@@ -104,7 +136,7 @@ if sektor is not None and not sektor.empty:
     target_month_num = target_month_date.month
     target_month_name = target_month_date.strftime('%b')
 
-    st.write(f"**Analiz edilecek hedef ay:** {target_month_name} (Ay Numarası: {target_month_num})")
+    #st.write(f"**Analiz edilecek hedef ay:** {target_month_name} (Ay Numarası: {target_month_num})")
 
     # Hedef aya ait veriler
     df_target_month = sektor[sektor['Month'] == target_month_num]
