@@ -12,7 +12,18 @@ def get_gcs_client():
         # Streamlit Cloud'da 'gcp_service_account' sırrı varsa onu al
         gcp_service_account_info = st.secrets['gcp_service_account']
         st.write(type(gcp_service_account_info))
+
+        # --- HATA AYIKLAMA İÇİN GÜNCELLENEN SATIRLAR ---
+        st.write("--- GCP Service Account Bilgisi Hata Ayıklama ---")
         st.write(f"gcp_service_account_info değişkeninin tipi: {type(gcp_service_account_info)}")
+        st.write("gcp_service_account_info içeriği:")
+        # st.write(str(gcp_service_account_info)[:200] + "...") # Önceki satır
+        # Hassas bilgileri (private_key) daha okunabilir ve doğrulanabilir şekilde göstermek için st.json kullanıldı.
+        # Streamlit, st.json ile hassas verileri otomatik olarak maskeler, ancak yine de dikkatli olun.
+        st.json(gcp_service_account_info)
+        st.write("---------------------------------------------")
+        # --- HATA AYIKLAMA İÇİN GÜNCELLENEN SATIRLAR SONU ---
+
         # Artık json.loads() kullanmaya gerek yok, çünkü st.secrets doğrudan bir AttrDict (sözlük benzeri) döndürüyor.
         # storage.Client.from_service_account_info() doğrudan bu sözlüğü kabul eder.
         client = storage.Client.from_service_account_info(gcp_service_account_info)
