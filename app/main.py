@@ -4,7 +4,18 @@ import pandas as pd
 import os
 from pathlib import Path
 
+st.set_page_config(initial_sidebar_state="collapsed")
 
+st.markdown(
+    """
+<style>
+    [data-testid="collapsedControl"] {
+        display: none
+    }
+</style>
+""",
+    unsafe_allow_html=True,
+)
 st.markdown("""
     <style>
     /* Menü (sidebar navigation) gizle */
