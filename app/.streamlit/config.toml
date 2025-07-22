@@ -1,3 +1,9 @@
+
 [theme]
-# Menü çubuğunu gizlemek için
 hide_st_header = true
+
+[theme]
+base = "light"
+
+[client]
+showSidebarNavigation = false
