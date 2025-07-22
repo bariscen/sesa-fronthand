@@ -5,6 +5,41 @@ import os
 from pathlib import Path
 
 
+
+# Basit kullanıcı veri tabanı
+users = {
+    "admin": "admin123",
+    "user1": "pass1"
+}
+
+# Oturum kontrolü
+if "authenticated" not in st.session_state:
+    st.session_state["authenticated"] = False
+
+if not st.session_state["authenticated"]:
+    username = st.text_input("Kullanıcı adı")
+    password = st.text_input("Şifre", type="password")
+
+    if st.button("Giriş Yap"):
+        if username in users and users[username] == password:
+            st.session_state["authenticated"] = True
+            st.session_state["username"] = username
+        else:
+            st.error("Hatalı giriş.")
+    st.stop()
+
+# Giriş başarılıysa görünür
+st.success(f"Hoş geldin, {st.session_state['username']}!")
+
+# Sayfa kontrolü
+if st.session_state["username"] == "admin":
+    st.subheader("Admin Sayfası")
+    st.write("Bu alan sadece admin içindir.")
+else:
+    st.subheader("Kullanıcı Sayfası")
+    st.write("Bu alan normal kullanıcıya özeldir.")
+
+
 # Bu dosyanın bulunduğu dizin
 current_dir = Path(__file__).parent
 

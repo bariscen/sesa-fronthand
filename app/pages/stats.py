@@ -2,6 +2,10 @@ import streamlit as st
 import os
 from pathlib import Path
 
+if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
+    st.warning("Bu sayfaya erişmek için giriş yapmalısınız.")
+    st.stop()
+
 # Bu dosyanın bulunduğu dizin
 current_dir = Path(__file__).parent.parent
 
