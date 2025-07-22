@@ -6,6 +6,10 @@ from pathlib import Path
 import requests
 import time
 import pickle
+import streamlit as st
+from app.function import read_gcs_blob_content
+
+
 
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)
@@ -30,43 +34,23 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-API_BASE = "http://localhost:8000"
-DATA_PATH_YILLAR = "data/stats_yillar.pkl"
 
-os.makedirs(os.path.dirname(DATA_PATH_YILLAR), exist_ok=True)
-
-st.header("📈 Yıllar Karşılaştırması ve Müşteri Kayıpları")
-
-try:
-    r = requests.get(f"{API_BASE}/stats-karsilastirma")
-    r.raise_for_status()
-    yillar = r.json()
-
-    # Veriyi pickle olarak kaydet
-    with open(DATA_PATH_YILLAR, "wb") as f:
-        pickle.dump(yillar, f)
-
-except Exception as e:
-    st.warning(f"Yıl karşılaştırmaları alınamadı, kayıtlı veriye dönülüyor: {e}")
-    if os.path.exists(DATA_PATH_YILLAR):
-        with open(DATA_PATH_YILLAR, "rb") as f:
-            yillar = pickle.load(f)
-    else:
-        st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek veri yok.")
-        yillar = None
+yillar = read_gcs_blob_content("stat")
 
 if yillar is not None:
-    st.write(yillar['Yılların Karşılaştırması'])
+    st.write("Veri Seti Yüklendi. ✅")
 
-    comp = yillar["2024 te olan 2025 te Olmayan Müşteriler(Günümüze kadar)"]
-    comp_df = pd.DataFrame({
-        "Musteri": list(comp["Musteri"].values()),
-        "Sektor": list(comp["Sektor"].values()),
-        "Satisci": list(comp["Satisci"].values()),
-        "KG": list(comp["kg"].values()),
-    })
+else:
+    st.error("Dikkat verisi çekilemedi.")
 
-    st.subheader("📊 Karşılaştırma")
-    st.dataframe(comp_df)
+
+
+
+
+if yillar is not None:
+    st.subheader("📊 2024 te olan 2025 te Olmayan Müşteriler(Günümüze kadar)")
+    st.write(yillar['2024 te olan 2025 te Olmayan Müşteriler(Günümüze kadar)'])
+
+
 else:
     st.write("Gösterilecek Yıllar Karşılaştırması verisi yok.")

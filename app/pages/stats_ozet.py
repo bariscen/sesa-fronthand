@@ -6,7 +6,7 @@ from pathlib import Path
 import requests
 import time
 import pickle
-
+from app.function import read_gcs_blob_content
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)
 current_dir = Path(__file__).parent.parent
@@ -30,31 +30,14 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-API_BASE = "http://localhost:8000"
-DATA_PATH_OZET = "data/stats_ozet.pkl"
+stats = read_gcs_blob_content("stat")
+
+if stats is not None:
+    st.write("Veri Seti Yüklendi. ✅")
+
+else:
+    st.error("Dikkat verisi çekilemedi.")
 
 
-# data klasörü yoksa oluştur
-os.makedirs(os.path.dirname(DATA_PATH_OZET), exist_ok=True)
-
-st.header("📊 İstatistiksel Özet")
-
-try:
-    r = requests.get(f"{API_BASE}/stats-ozet")
-    r.raise_for_status()
-    ozet = r.json()
-
-    # ozet verisini kaydet
-    with open(DATA_PATH_OZET, "wb") as f:
-        pickle.dump(ozet, f)
-
-    st.json(ozet)
-except Exception as e:
-    st.warning(f"İstatistik özeti alınamadı, kayıtlı veriye dönülüyor: {e}")
-    if os.path.exists(DATA_PATH_OZET):
-        with open(DATA_PATH_OZET, "rb") as f:
-            ozet = pickle.load(f)
-        st.json(ozet)
-    else:
-        st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek özet veri yok.")
-        ozet = None
+st.subheader("📊 2024 te olan 2025 te Olmayan Müşteriler(Günümüze kadar)")
+st.write(stats['Özet'])

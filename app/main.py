@@ -4,6 +4,7 @@ import pandas as pd
 import os
 from pathlib import Path
 
+
 # Bu dosyanın bulunduğu dizin
 current_dir = Path(__file__).parent
 
@@ -84,10 +85,10 @@ div.stButton > button {
 
 # PAGE_PASSWORDS sözlüğünü tam yol isimleriyle güncelle
 PAGE_PASSWORDS = {
-    "pages/page1.py": st.secrets.passwords.page1,
-    "pages/page2.py": st.secrets.passwords.page2,
-    "pages/page3.py": st.secrets.passwords.page3,
-    "pages/page4.py": st.secrets.passwords.page4
+    "pages/page1.py": st.secrets.page1,
+    "pages/page2.py": st.secrets.page2,
+    "pages/page3.py": st.secrets.page3,
+    "pages/page4.py": st.secrets.page4
 }
 
 # Secrets.toml dosyanızın içeriğinin bu şekilde olduğundan emin olun:
@@ -173,7 +174,7 @@ if st.session_state.show_password_input:
     page_display_name = DISPLAY_NAMES.get(st.session_state.target_page, "BİLİNMEYEN SAYFA")
 
     st.markdown(f"""
- 
+
     """, unsafe_allow_html=True)
     st.markdown(f"""
     <div class="custom-info-box">

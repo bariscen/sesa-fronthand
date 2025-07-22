@@ -7,6 +7,8 @@ import requests
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+import streamlit as st
+from app.function import read_gcs_blob_content
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)
 current_dir = Path(__file__).parent.parent
@@ -29,26 +31,13 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
-# Veri yükleme kısmı (senin mevcut kodun)
-API_BASE = "http://localhost:8000"
-DATA_PATH = "data/sektor.pkl"
-os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+sektor = read_gcs_blob_content("sektor")
 
-try:
-    r = requests.get(f"{API_BASE}/sektor")
-    r.raise_for_status()
-    sektor = pd.DataFrame(r.json())
-    with open(DATA_PATH, "wb") as f:
-        pickle.dump(sektor, f)
-    st.success("Veri başarıyla API'den alındı ve kaydedildi.")
-except Exception as e:
-    st.warning(f"API'den veri alınamadı, kayıtlı veriye dönülüyor: {e}")
-    if os.path.exists(DATA_PATH):
-        with open(DATA_PATH, "rb") as f:
-            sektor = pickle.load(f)
-    else:
-        st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek veri yok.")
-        sektor = None
+if sektor is not None:
+    st.write("Veri Seti Yüklendi. ✅")
+
+else:
+    st.error("verisi çekilemedi.")
 
 if sektor is not None and not sektor.empty:
     # Tarih ve yıl ayırımı
@@ -75,5 +64,3 @@ if sektor is not None and not sektor.empty:
 
     st.write("Önümüzdeki Ayın Geçen Senelerde ki Kiloları:")
     st.dataframe(df_pivot)
-
-   

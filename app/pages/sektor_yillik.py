@@ -8,6 +8,8 @@ import time
 import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
+import streamlit as st
+from app.function import read_gcs_blob_content
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)
 current_dir = Path(__file__).parent.parent
@@ -29,30 +31,15 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-API_BASE = "http://localhost:8000"
-DATA_PATH = "data/sektor.pkl"
 
-os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
-st.header("📈 Sektörel Analiz")
+sektor = read_gcs_blob_content("sektor")
 
-# Veri yükleme
-try:
-    r = requests.get(f"{API_BASE}/sektor")
-    r.raise_for_status()
-    sektor = pd.DataFrame(r.json())
+if sektor is not None:
+    st.write("Veri Seti Yüklendi. ✅")
 
-    with open(DATA_PATH, "wb") as f:
-        pickle.dump(sektor, f)
+else:
+    st.error("verisi çekilemedi.")
 
-    st.success("Veri başarıyla API'den alındı ve kaydedildi.")
-except Exception as e:
-    st.warning(f"API'den veri alınamadı, kayıtlı veriye dönülüyor: {e}")
-    if os.path.exists(DATA_PATH):
-        with open(DATA_PATH, "rb") as f:
-            sektor = pickle.load(f)
-    else:
-        st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek veri yok.")
-        sektor = None
 
 if sektor is not None and not sektor.empty:
     # Ay sıralaması (Jan, Feb, ... Dec)

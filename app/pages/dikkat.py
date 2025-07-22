@@ -6,6 +6,9 @@ from pathlib import Path
 import requests
 import time
 import pickle
+import streamlit as st
+from app.function import read_gcs_blob_content
+
 
 
 
@@ -31,41 +34,24 @@ st.markdown("""
     """, unsafe_allow_html=True)
 
 
+data = read_gcs_blob_content("dikkat")
 
-API_BASE = "http://localhost:8000"
-DATA_PATH = "data/dikkat.pkl"
+if data is not None:
+    st.write("Veri Seti Yüklendi. ✅")
 
-# 'data' klasörü yoksa oluştur
-os.makedirs(os.path.dirname(DATA_PATH), exist_ok=True)
+else:
+    st.error("Dikkat verisi çekilemedi.")
 
-st.markdown("<h2 style='color: #444;'>🚨 Dikkat Edilmesi Gereken Müşteriler</h2>", unsafe_allow_html=True)
 
-try:
-    r = requests.get(f"{API_BASE}/dikkat")
-    r.raise_for_status()
-    data = r.json()
+if data is not None:
 
-    # Gelen veri içerisinden DataFrame'leri oluştur
-    df1 = pd.DataFrame(data["df1"])
-    df2 = pd.DataFrame(data["df2"])
+    df1 = data[0]
+    df2 = data[1]
 
-    # DataFrame'leri birlikte pickle dosyasına kaydet
-    with open(DATA_PATH, "wb") as f:
-        pickle.dump({"df1": df1, "df2": df2}, f)
-
-    st.success("Veri başarıyla API'den alındı ve kaydedildi.")
-except Exception as e:
-    st.warning(f"API'den veri alınamadı, kayıtlı veriye dönülüyor: {e}")
-
-    if os.path.exists(DATA_PATH):
-        with open(DATA_PATH, "rb") as f:
-            data = pickle.load(f)
-            df1 = data.get("df1", pd.DataFrame())
-            df2 = data.get("df2", pd.DataFrame())
-    else:
-        st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek veri yok.")
-        df1 = pd.DataFrame()
-        df2 = pd.DataFrame()
+else:
+    st.error("Ne API verisi var ne de kayıtlı dosya. Gösterilecek veri yok.")
+    df1 = pd.DataFrame()
+    df2 = pd.DataFrame()
 
 if not df1.empty:
     st.subheader("1️⃣ Geçtiğimiz 3 Haftada Kesin Sipariş Vermesi Beklenen ama Vermeyen")
@@ -78,3 +64,10 @@ if not df2.empty:
     st.dataframe(df2)
 else:
     st.write("Gösterilecek veri yok: 2️⃣")
+
+
+
+
+#gcloud auth login bariscen36@gmail.com
+#gcloud config set project <PROJE_IDNIZ> # Proje ID'nizi buraya yazın (örn: linen-mason-456813-v6 veya kendi projeniz)
+#gcloud auth application-default login
