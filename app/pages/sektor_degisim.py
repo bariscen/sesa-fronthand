@@ -8,7 +8,18 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from app.function import read_gcs_blob_content
+import sys
+
+# Projenin kök dizinini (sesa_front) Python'ın arama yoluna ekle.
+# gelecek.py dosyası 'app/pages' klasörünün içinde olduğu için,
+# Path(__file__).resolve().parent -> app/pages
+# .parent.parent -> app
+# .parent.parent.parent -> sesa_front (projenin kökü)
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
+
+# Şimdi 'function.py' dosyasını doğrudan projenin kökünden import edebiliriz.
+from function import read_gcs_blob_content
+
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)
 current_dir = Path(__file__).parent.parent
