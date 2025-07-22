@@ -11,9 +11,9 @@ def get_gcs_client():
     try:
         # Streamlit Cloud'da 'gcp_service_account' sırrı varsa onu al
         gcp_service_account_info = st.secrets['gcp_service_account']
-        st.write(type(gcp_service_account_info))
+        #st.write(type(gcp_service_account_info))
 
-    
+
         # Artık json.loads() kullanmaya gerek yok, çünkü st.secrets doğrudan bir AttrDict (sözlük benzeri) döndürüyor.
         # storage.Client.from_service_account_info() doğrudan bu sözlüğü kabul eder.
         client = storage.Client.from_service_account_info(gcp_service_account_info)
@@ -22,7 +22,7 @@ def get_gcs_client():
 
     except KeyError:
         # 'gcp_service_account' sırrı bulunamazsa buraya düşeriz (yerel testte veya sır eksikse)
-        st.warning("GCP Service Account sırrı (gcp_service_account) Streamlit.secrets'ta bulunamadı. Yerel geliştirme için Application Default Credentials (ADC) kullanılacak.")
+        #st.warning("GCP Service Account sırrı (gcp_service_account) Streamlit.secrets'ta bulunamadı. Yerel geliştirme için Application Default Credentials (ADC) kullanılacak.")
         client = storage.Client() # Yerelde ADC'yi kullanır, Cloud'da hata verir (çünkü sır yok)
 
     except Exception as e: # Catch all other potential errors during client creation
