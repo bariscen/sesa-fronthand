@@ -12,8 +12,8 @@ def get_gcs_client(): # Yardımcı fonksiyon olduğu için başına '_' ekledik
         # Streamlit Cloud'da 'gcp_service_account' sırrı varsa onu kullan
         # Yerel çalışırken bu Key Error verir ve 'else' bloğuna düşer.
         gcs_credentials = st.secrets["gcp_service_account"]
-        credentials_info = json.loads(gcs_credentials)
-        client = storage.Client.from_service_account_info(credentials_info)
+        #credentials_info = json.loads(gcs_credentials)
+        client = storage.Client.from_service_account_info(gcs_credentials)
     except KeyError:
         # Sır bulunamazsa (yerel testte olduğu gibi), ADC'yi kullan
         client = storage.Client()
