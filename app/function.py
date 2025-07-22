@@ -12,6 +12,7 @@ def get_gcs_client():
         # Streamlit Cloud'da 'gcp_service_account' sırrı varsa onu al
         gcp_service_account_info = st.secrets['gcp_service_account']
         st.write(type(gcp_service_account_info))
+        st.write(f"gcp_service_account_info değişkeninin tipi: {type(gcp_service_account_info)}")
         # Artık json.loads() kullanmaya gerek yok, çünkü st.secrets doğrudan bir AttrDict (sözlük benzeri) döndürüyor.
         # storage.Client.from_service_account_info() doğrudan bu sözlüğü kabul eder.
         client = storage.Client.from_service_account_info(gcp_service_account_info)
