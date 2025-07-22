@@ -9,9 +9,7 @@ import pickle
 import streamlit as st
 from app.function import read_gcs_blob_content
 
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("Bu sayfaya erişmek için giriş yapmalısınız.")
-    st.stop()
+
 
 
 # Bu dosyanın bulunduğu dizin (app.py'nin dizini)

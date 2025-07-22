@@ -10,9 +10,6 @@ import streamlit as st
 import sys
 
 
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("Bu sayfaya erişmek için giriş yapmalısınız.")
-    st.stop()
 
 
 # Projenin kök dizinini (sesa_front) Python'ın arama yoluna ekle.
