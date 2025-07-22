@@ -4,40 +4,45 @@ import pandas as pd
 import os
 from pathlib import Path
 
+import streamlit as st
 
+# Menü ve footer'ı gizle
+st.markdown("""
+    <style>
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+    </style>
+""", unsafe_allow_html=True)
 
-# Basit kullanıcı veri tabanı
-users = {
-    "admin": "admin123",
-    "user1": "pass1"
-}
+# Sayfa durumu
+if "page" not in st.session_state:
+    st.session_state.page = "home"
 
-# Oturum kontrolü
-if "authenticated" not in st.session_state:
-    st.session_state["authenticated"] = False
+# Sayfa geçişi
+def switch_page(page_name):
+    st.session_state.page = page_name
 
-if not st.session_state["authenticated"]:
-    username = st.text_input("Kullanıcı adı")
-    password = st.text_input("Şifre", type="password")
+# Sayfa içerikleri
+if st.session_state.page == "home":
+    st.title("Ana Sayfa")
+    if st.button("Admin Sayfasına Git"):
+        switch_page("admin")
+    if st.button("Kullanıcı Sayfasına Git"):
+        switch_page("user")
 
-    if st.button("Giriş Yap"):
-        if username in users and users[username] == password:
-            st.session_state["authenticated"] = True
-            st.session_state["username"] = username
-        else:
-            st.error("Hatalı giriş.")
-    st.stop()
+elif st.session_state.page == "admin":
+    st.title("Admin Sayfası")
+    st.write("Bu sadece admin sayfasıdır.")
+    if st.button("Geri Dön"):
+        switch_page("home")
 
-# Giriş başarılıysa görünür
-st.success(f"Hoş geldin, {st.session_state['username']}!")
+elif st.session_state.page == "user":
+    st.title("Kullanıcı Sayfası")
+    st.write("Bu sadece kullanıcı sayfasıdır.")
+    if st.button("Geri Dön"):
+        switch_page("home")
 
-# Sayfa kontrolü
-if st.session_state["username"] == "admin":
-    st.subheader("Admin Sayfası")
-    st.write("Bu alan sadece admin içindir.")
-else:
-    st.subheader("Kullanıcı Sayfası")
-    st.write("Bu alan normal kullanıcıya özeldir.")
 
 
 # Bu dosyanın bulunduğu dizin

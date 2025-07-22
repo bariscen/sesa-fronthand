@@ -4,9 +4,6 @@ import os
 import streamlit as st
 import json
 
-if "authenticated" not in st.session_state or not st.session_state["authenticated"]:
-    st.warning("Bu sayfaya erişmek için giriş yapmalısınız.")
-    st.stop()
 
 def get_gcs_client():
     """Google Cloud Storage istemcisini başlatır."""
