@@ -4,6 +4,20 @@ import pandas as pd
 import os
 from pathlib import Path
 
+
+st.markdown("""
+    <style>
+    /* Menü (sidebar navigation) gizle */
+    section[data-testid="stSidebarNav"] {
+        display: none;
+    }
+    /* Sağ üstteki hamburger menü gizle */
+    button[title="Toggle sidebar"] {
+        display: none;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
