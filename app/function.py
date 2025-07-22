@@ -18,7 +18,7 @@ def get_gcs_client():
         # storage.Client.from_service_account_info() doğrudan bu sözlüğü kabul eder.
         client = storage.Client.from_service_account_info(gcp_service_account_info)
 
-        st.success("GCS istemcisi hizmet hesabı ile başarıyla oluşturuldu.")
+        #st.success("GCS istemcisi hizmet hesabı ile başarıyla oluşturuldu.")
 
     except KeyError:
         # 'gcp_service_account' sırrı bulunamazsa buraya düşeriz (yerel testte veya sır eksikse)
