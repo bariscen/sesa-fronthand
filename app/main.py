@@ -4,46 +4,13 @@ import pandas as pd
 import os
 from pathlib import Path
 
-import streamlit as st
-
-# Menü ve footer'ı gizle
 st.markdown("""
     <style>
     #MainMenu {visibility: hidden;}
-    footer {visibility: hidden;}
     header {visibility: hidden;}
+    footer {visibility: hidden;}
     </style>
 """, unsafe_allow_html=True)
-
-# Sayfa durumu
-if "page" not in st.session_state:
-    st.session_state.page = "home"
-
-# Sayfa geçişi
-def switch_page(page_name):
-    st.session_state.page = page_name
-
-# Sayfa içerikleri
-if st.session_state.page == "home":
-    st.title("Ana Sayfa")
-    if st.button("Admin Sayfasına Git"):
-        switch_page("admin")
-    if st.button("Kullanıcı Sayfasına Git"):
-        switch_page("user")
-
-elif st.session_state.page == "admin":
-    st.title("Admin Sayfası")
-    st.write("Bu sadece admin sayfasıdır.")
-    if st.button("Geri Dön"):
-        switch_page("home")
-
-elif st.session_state.page == "user":
-    st.title("Kullanıcı Sayfası")
-    st.write("Bu sadece kullanıcı sayfasıdır.")
-    if st.button("Geri Dön"):
-        switch_page("home")
-
-
 
 # Bu dosyanın bulunduğu dizin
 current_dir = Path(__file__).parent
