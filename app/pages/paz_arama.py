@@ -169,15 +169,15 @@ with st.form("Cold Call için Firma Bilgileri"):
         Firma adı: {company_name}
         İlgili kişi pozisyonu: {contact_role}
 
-        {company_name} bunları cevaplandır:
-        1. Şirket Tanımı
-        2. Sektör & Faaliyet Alanları
-        3. Sattığı ürünler
-        4. Plastik ambalaj kullanımı
+         bunları cevaplandır:
+        1. {company_name} genel bakış. Ne iş yaparlar? Kaç kişi çalışır? Ne kadar büyükler?
+        2. {company_name} kaç farklı ürün satıyor? Genel olarak odaklandıkları bir segment ürün var mı?
+        3. {company_name} sattığı ürünleri listele
+        4. {company_name} hangi ürünlerinde Plastik ambalaj kullanıyor olabilir?
         5. Sürdürebilirlik politikaları
-        6. Dijital Varlıklar
-        7. Muhtemel İhtiyaçlar / Ağrı Noktaları
-        8. Soğuk Arama İçin Notlar
+        6. {company_name} Dijital Varlıklar
+        7. {company_name} Muhtemel İhtiyaçlar / Ağrı Noktaları
+        8. {company_name} Soğuk Arama İçin Notlar
         """)
 
         # Zincir oluştur
