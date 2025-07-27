@@ -95,8 +95,8 @@ with col1:
             st.switch_page("pages/paz_mail.py")
 
 with col2:
-    if st.button("🕵️‍♀️ Beklenen ama Gelmeyen Siparişler"):
-        with st.spinner("☎️ Cold Arama için Özet"):
+    if st.button("☎️ Cold Arama için Özet"):
+        with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/paz_arama.py")
 
 # --- 2 Buton Altta ---
@@ -138,14 +138,14 @@ st.markdown("""
 button_placeholder = st.empty()
 with button_placeholder.container():
     # Butonun key parametresi önemli, her butonun unique olmalı
-    clicked = st.button("Ana Sayfaya Dön", key="back_to_sales", help="Satış sayfasına dön",
+    clicked = st.button("Ana Sayfaya Dön", key="back_to_main", help="Menüye dön",
                         args=None, kwargs=None)
     # Yukarıdaki button normal görünüyor, şimdi butona CSS sınıfını JavaScript ile ekleyelim
     # Çünkü Streamlit doğrudan class parametre almıyor
 
     st.markdown("""
     <script>
-    const btn = window.parent.document.querySelector('button[kind="primary"][data-testid^="stButton"][aria-label="Satış Menüsüne Dön"]');
+    const btn = window.parent.document.querySelector('button[kind="primary"][data-testid^="stButton"][aria-label="Menüye Dön"]');
     if(btn){
         btn.classList.add("fixed-button");
     }

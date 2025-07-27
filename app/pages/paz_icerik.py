@@ -98,3 +98,50 @@ with col2:
     if st.button("🔭 linkedin Postu"):
         with st.spinner("☎️ Cold Arama için Özet"):
             st.switch_page("pages/paz_ic_linkedin.py")
+
+
+t.markdown("""
+    <style>
+    /* Sadece fixed-button sınıfına sahip buttona uygulanır */
+    .fixed-button {
+        position: fixed !important;
+        top: 30px !important;
+        right: 10px !important;
+        background-color: #444444 !important;
+        color: #FFBF00 !important;
+        border-radius: 8px !important;
+        border: none !important;
+        padding: 12px 24px !important;
+        font-size: 18px !important;
+        font-weight: bold !important;
+        cursor: pointer !important;
+        z-index: 9999 !important;
+        transition: background-color 0.3s ease !important;
+    }
+    .fixed-button:hover {
+        background-color: #555555 !important;
+        color: #FFBF00 !important;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Özel stil için butonu container içine al ve sınıfı ver
+button_placeholder = st.empty()
+with button_placeholder.container():
+    # Butonun key parametresi önemli, her butonun unique olmalı
+    clicked = st.button("Pazarlama Menüsüne Dön", key="back_to_marketing", help="Pazarlama sayfasına dön",
+                        args=None, kwargs=None)
+    # Yukarıdaki button normal görünüyor, şimdi butona CSS sınıfını JavaScript ile ekleyelim
+    # Çünkü Streamlit doğrudan class parametre almıyor
+
+    st.markdown("""
+    <script>
+    const btn = window.parent.document.querySelector('button[kind="primary"][data-testid^="stButton"][aria-label="Pazarlama Menüsüne Dön"]');
+    if(btn){
+        btn.classList.add("fixed-button");
+    }
+    </script>
+    """, unsafe_allow_html=True)
+
+if clicked:
+    st.switch_page("pages/page2.py")
