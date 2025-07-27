@@ -169,7 +169,7 @@ with st.form("Cold Call için Firma Bilgileri"):
         Firma adı: {company_name}
         İlgili kişi pozisyonu: {contact_role}
 
-        Lütfen şu başlıklar altında bilgi ver:
+        {company_name} bunları cevaplandır:
         1. Şirket Tanımı
         2. Sektör & Faaliyet Alanları
         3. Sattığı ürünler
