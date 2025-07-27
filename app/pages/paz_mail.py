@@ -126,11 +126,11 @@ with st.container():
 import streamlit as st
 
 # Title
-st.title("User Information Form")
+st.title("Cold Mail ve Cold Call Üreticisine Hoşgeldin")
 
 # Create a form with a box layout
 with st.form("Cold Mail Üreticisine Hoşgeldin"):
-    st.subheader("Please enter your details")
+    st.subheader("Şirket Detayları")
 
     name = st.text_input("Name")
     company_name = st.text_input("Company Name")

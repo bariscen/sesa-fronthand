@@ -90,23 +90,14 @@ div.stButton > button {
 col1, col2 = st.columns(2)
 
 with col1:
-    if st.button("🧬 Cold Email ve Cold Call Oluştur"):
+    if st.button("🕯️Tekli Cold Mail ve Cold Call Üreticisi"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_mail_all.py")
+            st.switch_page("pages/paz_mail.py")
 
 with col2:
-    if st.button("☎️ Cold Arama için Özet"):
+    if st.button("💡Çoklu Cold Mail ve Cold Call Üreticisi"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_arama.py")
-
-# --- 2 Buton Altta ---
-col3,  = st.columns(1)
-
-with col3:
-    if st.button("📊 İçerik Üreticisi"):
-        with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_icerik.py")
-
+            st.switch_page("pages/paz_mail_coklu.py")
 
 
 st.markdown("""
@@ -138,14 +129,14 @@ st.markdown("""
 button_placeholder = st.empty()
 with button_placeholder.container():
     # Butonun key parametresi önemli, her butonun unique olmalı
-    clicked = st.button("Ana Sayfaya Dön", key="back_to_main", help="Menüye dön",
+    clicked = st.button("Pazarlama Menüsüne Dön", key="back_to_marketing", help="Pazarlama sayfasına dön",
                         args=None, kwargs=None)
     # Yukarıdaki button normal görünüyor, şimdi butona CSS sınıfını JavaScript ile ekleyelim
     # Çünkü Streamlit doğrudan class parametre almıyor
 
     st.markdown("""
     <script>
-    const btn = window.parent.document.querySelector('button[kind="primary"][data-testid^="stButton"][aria-label="Menüye Dön"]');
+    const btn = window.parent.document.querySelector('button[kind="primary"][data-testid^="stButton"][aria-label="Pazarlama Menüsüne Dön"]');
     if(btn){
         btn.classList.add("fixed-button");
     }
@@ -153,4 +144,4 @@ with button_placeholder.container():
     """, unsafe_allow_html=True)
 
 if clicked:
-    st.switch_page("main.py")
+    st.switch_page("pages/page2.py")
