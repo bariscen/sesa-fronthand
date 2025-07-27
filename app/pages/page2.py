@@ -95,17 +95,11 @@ with col1:
             st.switch_page("pages/paz_mail_all.py")
 
 with col2:
-    if st.button("☎️ Cold Arama için Özet"):
-        with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_arama.py")
-
-# --- 2 Buton Altta ---
-col3,  = st.columns(1)
-
-with col3:
     if st.button("📊 İçerik Üreticisi"):
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/paz_icerik.py")
+
+
 
 
 
