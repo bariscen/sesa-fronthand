@@ -165,9 +165,6 @@ with st.form("Cold Call için Firma Bilgileri"):
 
 
         prompt_template = ChatPromptTemplate.from_template("""
-        Sen deneyimli bir B2B satış temsilcisisin. Aşağıdaki firma hakkında soğuk arama yapmadan önce bilgi topluyorsun.
-        Firma adı: {company_name}
-        İlgili kişi pozisyonu: {contact_role}
 
          bunları cevaplandır:
         1. {company_name} genel bakış. Ne iş yaparlar? Kaç kişi çalışır? Ne kadar büyükler?
