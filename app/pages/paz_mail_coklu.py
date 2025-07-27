@@ -13,9 +13,13 @@ from app.function import read_gcs_blob_content
 from app.gpt import get_observation, extract_sector, rag, referans, generate_better_email, create_personalized_email, extract_state
 
 
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-os.environ["LANGSMITH_API_KEY"] = st.secrets["LANGSMITH_API_KEY"]
-os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+openai_api_key = st.secrets.get("OPENAI_API_KEY")
+langsmith_api_key = st.secrets.get("LANGSMITH_API_KEY")
+tavily_api_key = st.secrets.get("TAVILY_API_KEY")
+
+os.environ["OPENAI_API_KEY"] = openai_api_key
+os.environ["LANGSMITH_API_KEY"] = langsmith_api_key
+os.environ["TAVILY_API_KEY"] = tavily_api_key
 
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults

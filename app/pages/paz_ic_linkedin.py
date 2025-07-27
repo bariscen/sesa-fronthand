@@ -32,14 +32,15 @@ from typing import List, Annotated
 from typing_extensions import TypedDict
 import time
 from openai import RateLimitError
-from app.gpt import translator
 
 
+openai_api_key = st.secrets.get("OPENAI_API_KEY")
+langsmith_api_key = st.secrets.get("LANGSMITH_API_KEY")
+tavily_api_key = st.secrets.get("TAVILY_API_KEY")
 
-os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
-os.environ["LANGSMITH_API_KEY"] = st.secrets["LANGSMITH_API_KEY"]
-os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
-
+os.environ["OPENAI_API_KEY"] = openai_api_key
+os.environ["LANGSMITH_API_KEY"] = langsmith_api_key
+os.environ["TAVILY_API_KEY"] = tavily_api_key
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
 
