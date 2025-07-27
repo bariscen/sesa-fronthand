@@ -145,5 +145,52 @@ with st.container():
 
 import streamlit as st
 
+from langchain.prompts import ChatPromptTemplate
+from langchain.chains import LLMChain
 
 
+with st.form("Cold Call için Firma Bilgileri"):
+    st.subheader("Şirket Detayları")
+
+    company_name = st.text_input("Company Name")
+    position = st.text_input("Position")
+
+    st.session_state['company']= company_name
+    st.session_state['position']= position
+
+    # Submit button
+    submitted = st.form_submit_button("Submit")
+
+    if submitted:
+
+
+        prompt_template = ChatPromptTemplate.from_template("""
+        Sen deneyimli bir B2B satış temsilcisisin. Aşağıdaki firma hakkında soğuk arama yapmadan önce bilgi topluyorsun.
+        Firma adı: {company_name}
+        İlgili kişi pozisyonu: {contact_role}
+
+        Lütfen şu başlıklar altında bilgi ver:
+        1. Şirket Tanımı
+        2. Sektör & Faaliyet Alanları
+        3. Sattığı ürünler
+        4. Plastik ambalaj kullanımı
+        5. Sürdürebilirlik politikaları
+        6. Dijital Varlıklar
+        7. Muhtemel İhtiyaçlar / Ağrı Noktaları
+        8. Soğuk Arama İçin Notlar
+        """)
+
+        # Zincir oluştur
+        company_profile_chain = LLMChain(
+            llm=llm,
+            prompt=prompt_template
+        )
+
+        # Fonksiyonel hale getir
+        def get_company_profile(company_name, contact_role=""):
+            return company_profile_chain.run({
+                "company_name": company_name,
+                "contact_role": contact_role
+            })
+
+st.write(get_company_profile(st.session_state['company'], st.session_state['position']))
