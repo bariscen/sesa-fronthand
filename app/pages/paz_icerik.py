@@ -100,7 +100,7 @@ with col2:
             st.switch_page("pages/paz_ic_linkedin.py")
 
 
-t.markdown("""
+st.markdown("""
     <style>
     /* Sadece fixed-button sınıfına sahip buttona uygulanır */
     .fixed-button {
