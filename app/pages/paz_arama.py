@@ -163,20 +163,57 @@ with st.form("Cold Call için Firma Bilgileri"):
 
     if submitted:
 
+        import streamlit as st
+        from langchain.chat_models import ChatOpenAI
+        from langchain.schema import HumanMessage
+        from langchain.tools.tavily_search import TavilySearchResults
+
+        # OpenAI ve Tavily ayarları
+        llm = ChatOpenAI(model="gpt-4", temperature=0.5)
+        tavily_search = TavilySearchResults(max_results=3, api_key="YOUR_TAVILY_API_KEY")
+
+        # Web'den bilgi çekme fonksiyonu
         def search_web(company_info):
-            tavily_search = TavilySearchResults(max_results=3)
-            query = f"""
-            Find recent or notable details about {company_info} """
+            query = f"Recent or notable details about {company_info}"
             tavily_results = tavily_search.run(query.strip())
             return tavily_results
 
-        def llm_search(company_info, tavily):
-            messages = [HumanMessage(content="Find my all the iformation about {company_info} search in your database and also take information from {search_web(tavily)}")]
+        # LLM'e gönderilecek mesajı oluştur
+        def llm_search(company_info, web_data):
+            prompt = f"""
+            You're a B2B sales researcher preparing for a cold call.
+            Use the following data to create a short company profile.
+
+            Company Name: {company_info}
+
+            Web Search Results:
+            {web_data}
+
+            Please summarize in the following structure:
+            1. Company Description
+            2. Sector & Offerings
+            3. Digital Footprint
+            4. Potential Pain Points or Needs
+            5. Cold Call Talking Points
+            """
+            messages = [HumanMessage(content=prompt)]
             response = llm(messages)
             return response.content.strip()
 
-        tavily = search_web( st.session_state['company'])
-        st.write(llm_search(st.session_state['company'], tavily))
+        # Streamlit UI
+        if 'company' not in st.session_state:
+            st.session_state['company'] = ''
+
+        st.title("Cold Call Company Profiler")
+        company_input = st.text_input("Enter company name", value=st.session_state['company'])
+
+        if st.button("Get Info"):
+            st.session_state['company'] = company_input
+            with st.spinner("Searching the web and generating summary..."):
+                tavily_data = search_web(company_input)
+                result = llm_search(company_input, tavily_data)
+                st.markdown("### Company Profile")
+                st.write(result)
 
 
 
@@ -184,23 +221,21 @@ with st.form("Cold Call için Firma Bilgileri"):
 
 
 
+                prompt_template = ChatPromptTemplate.from_template("""ds
+                                    {company_name}
+                """)
 
+                # Zincir oluştur
+                company_profile_chain = LLMChain(
+                    llm=llm,
+                    prompt=prompt_template
+                )
 
-        prompt_template = ChatPromptTemplate.from_template("""ds
-                            {company_name}
-        """)
+                # Fonksiyonel hale getir
+                def get_company_profile(company_name, contact_role=""):
+                    return company_profile_chain.run({
+                        "company_name": company_name,
+                        "contact_role": contact_role
+                    })
 
-        # Zincir oluştur
-        company_profile_chain = LLMChain(
-            llm=llm,
-            prompt=prompt_template
-        )
-
-        # Fonksiyonel hale getir
-        def get_company_profile(company_name, contact_role=""):
-            return company_profile_chain.run({
-                "company_name": company_name,
-                "contact_role": contact_role
-            })
-
-st.write(get_company_profile(st.session_state['company'], st.session_state['position']))
+        st.write(get_company_profile(st.session_state['company'], st.session_state['position']))
