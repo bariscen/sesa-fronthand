@@ -92,12 +92,24 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🧬 Cold Email ve Cold Call Oluştur"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_mail_all.py")
+            st.switch_page("pages/paz_mail.py")
 
 with col2:
-    if st.button("📊 İçerik Üreticisi"):
+    if st.button("📿 Çoklu Cold Email ve Cold Call Oluştur"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_arama.py")
+            st.switch_page("pages/ppaz_mail_coklu.py")
+# --- 2 Buton Altta ---
+col3, col4 = st.columns(2)
+
+with col3:
+    if st.button("📬 Gazete"):
+        with st.spinner("Sayfa yükleniyor..."):
+            st.switch_page("pages/paz_ic_gazete.py")
+
+with col4:
+    if st.button("💾 Likedin İçerik Üretimi"):
+        with st.spinner("Sayfa yükleniyor..."):
+            st.switch_page("pages/paz_ic_linkedin.py")
 
 
 
