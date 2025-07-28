@@ -163,18 +163,31 @@ with st.form("Cold Call için Firma Bilgileri"):
 
     if submitted:
 
+        def search_web(company_info):
+            tavily_search = TavilySearchResults(max_results=3)
+            query = f"""
+            Find recent or notable details about {company_info} """
+            tavily_results = tavily_search.run(query.strip())
+            return tavily_results
 
-        prompt_template = ChatPromptTemplate.from_template("""
+        def llm_search(company_info, tavily):
+            messages = [HumanMessage(content="Find my all the iformation about {company_info} search in your database and also take information from {search_web(tavily)}")]
+            response = llm(messages)
+            return response.content.strip()
 
-         bunları cevaplandır:
-        1. {company_name} genel bakış. Ne iş yaparlar? Kaç kişi çalışır? Ne kadar büyükler?
-        2. {company_name} kaç farklı ürün satıyor? Genel olarak odaklandıkları bir segment ürün var mı?
-        3. {company_name} sattığı ürünleri listele
-        4. {company_name} hangi ürünlerinde Plastik ambalaj kullanıyor olabilir?
-        5. Sürdürebilirlik politikaları
-        6. {company_name} Dijital Varlıklar
-        7. {company_name} Muhtemel İhtiyaçlar / Ağrı Noktaları
-        8. {company_name} Soğuk Arama İçin Notlar
+        tavily = search_web( st.session_state['company'])
+        st.write(llm_search(st.session_state['company'], tavily))
+
+
+
+
+
+
+
+
+
+        prompt_template = ChatPromptTemplate.from_template("""ds
+                            {company_name}
         """)
 
         # Zincir oluştur

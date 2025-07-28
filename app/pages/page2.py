@@ -97,7 +97,7 @@ with col1:
 with col2:
     if st.button("📊 İçerik Üreticisi"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/paz_icerik.py")
+            st.switch_page("pages/paz_arama.py")
 
 
 
