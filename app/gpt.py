@@ -120,7 +120,7 @@ Here is some background info:
 - Target sector: {target_sector}
 - Our strengths: {context}
 - Our competitive andvantages: Shorter delivery time, competitive prices and all production is in one place
-- Social proof: {referanslar}, give atleast 3 examples
+- Social proof: {referanslar}
 - Observations: {tavily_info}
 - Targetted company: {company_info}
 
@@ -129,7 +129,8 @@ Instructions:
 - Write a **short, warm and human-like cold email**.
 - Start with a personalized, observational intro (2 sentences).
 - Then 2–3 sentences explaining why we’re reaching out and how we can help.
-- Mention 1 reference client or project if relevant.
+- Mention competitive andvantages
+- Mention 3 reference client or project if relevant.
 - End with a soft close: say we’re happy to answer questions, and mention our packaging trends newsletter.
 
 Guidelines:
