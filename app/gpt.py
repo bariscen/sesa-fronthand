@@ -32,6 +32,7 @@ Using the company data below, generate a short and insightful paragraph (2–3 s
 - Demonstrates a deep understanding of the company's **position**, **strategy**, or **market**
 - Can reference packaging, innovation, growth, hiring, product focus, operations, or industry dynamics
 - Clearly states any **certifications** they hold and **main product lines**, if mentioned
+- Don't mention anything related Date.
 - Is grounded strictly in the data — no guesses or assumptions
 
 Do NOT write an email. Just return the observation paragraph, like a strategist or business analyst would.
@@ -118,7 +119,8 @@ Here is some background info:
 - The recipient works in the position of: {position}
 - Target sector: {target_sector}
 - Our strengths: {context}
-- Social proof: {referanslar}
+- Our competitive andvantages: Shorter delivery time, competitive prices and all production is in one place
+- Social proof: {referanslar}, give atleast 3 examples
 - Observations: {tavily_info}
 - Targetted company: {company_info}
 

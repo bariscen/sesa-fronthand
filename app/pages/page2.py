@@ -97,7 +97,7 @@ with col1:
 with col2:
     if st.button("📿 Çoklu Cold Email ve Cold Call Oluştur"):
         with st.spinner("Sayfa yükleniyor..."):
-            st.switch_page("pages/ppaz_mail_coklu.py")
+            st.switch_page("pages/paz_mail_coklu.py")
 # --- 2 Buton Altta ---
 col3, col4 = st.columns(2)
 
