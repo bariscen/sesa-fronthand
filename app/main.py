@@ -161,15 +161,15 @@ def check_password_and_navigate():
 
 
 # --- Navigasyon Butonları ---
-col1, col2 = st.columns(2)
-with col1:
-    if st.button('SATIŞ'):
-        st.session_state.show_password_input = True
-        st.session_state.target_page = "pages/page1.py" # Tam yolu kullan
-        st.session_state.password_error = False
-        # st.rerun() # Buradan kaldırıldı
+col1 = st.columns(1)[0]
+# with col1:
+#     if st.button('SATIŞ'):
+#         st.session_state.show_password_input = True
+#         st.session_state.target_page = "pages/page1.py" # Tam yolu kullan
+#         st.session_state.password_error = False
+#         # st.rerun() # Buradan kaldırıldı
 
-with col2:
+with col1:
     if st.button('PAZARLAMA'):
         st.session_state.show_password_input = True
         st.session_state.target_page = "pages/page2.py" # Tam yolu kullan

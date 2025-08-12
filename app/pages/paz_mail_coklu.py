@@ -144,16 +144,16 @@ if uploaded_file is not None:
 def email(company_name, state, position, name):
         tavily_res = get_observation(company_name)
         #st.write(tavily_res)
-        #st.write('----------🧭-------------')
         target_sector = extract_sector(tavily_res)
         ulke_kodu = extract_state(state)
         #st.write(target_sector)
-        st.write('----------🧭-------------')
+
         pdf_path = current_dir / "data" / "RAG-SESA.pdf"
         context = rag(pdf_path)
         referanslar = referans(sektor_ulke, target_sector, ulke_kodu)
         result = generate_better_email(tavily_res, position,target_sector , context, company_name, referanslar)
         final = create_personalized_email(result, name)
+        st.write('----------🧭 TAMAMLANDI, SIRADAKİNE GEÇİLİYOR -------------')
         return final
 
 if uploaded_file is not None:

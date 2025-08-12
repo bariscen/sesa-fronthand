@@ -28,11 +28,9 @@ You are a research-oriented business analyst and B2B cold email strategist. Your
         HumanMessage(content=f"""
 Using the company data below, generate a short and insightful paragraph (2–3 sentences) that:
 
-- Highlights a current **challenge**, **shift**, or **opportunity**
 - Demonstrates a deep understanding of the company's **position**, **strategy**, or **market**
 - Can reference packaging, innovation, growth, hiring, product focus, operations, or industry dynamics
-- Clearly states any **certifications** they hold and **main product lines**, if mentioned
-- Don't mention anything related Date.
+- Don't mention any dates.
 - Is grounded strictly in the data — no guesses or assumptions
 
 Do NOT write an email. Just return the observation paragraph, like a strategist or business analyst would.
@@ -120,6 +118,7 @@ Here is some background info:
 - Target sector: {target_sector}
 - Our strengths: {context}
 - Our competitive andvantages: Shorter delivery time, competitive prices and all production is in one place
+- Products for sustainability: recyclable and compostable packaging
 - Social proof: {referanslar}
 - Observations: {tavily_info}
 - Targetted company: {company_info}
@@ -130,7 +129,8 @@ Instructions:
 - Start with a personalized, observational intro (2 sentences).
 - Then 2–3 sentences explaining why we’re reaching out and how we can help.
 - Mention competitive andvantages
-- Mention 3 reference client or project if relevant.
+- Mention products for sustainability if relevant.
+- Mention 3 reference clients or projects if relevant.
 - End with a soft close: say we’re happy to answer questions, and mention our packaging trends newsletter.
 
 Guidelines:
