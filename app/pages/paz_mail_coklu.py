@@ -9,7 +9,7 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from app.function import read_gcs_blob_content
+from ..function import read_gcs_blob_content
 from app.gpt import get_observation, extract_sector, rag, referans, generate_better_email, create_personalized_email, extract_state
 
 
