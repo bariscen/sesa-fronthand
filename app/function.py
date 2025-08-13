@@ -75,3 +75,18 @@ def read_gcs_blob_content(blob_key: str):
         st.info("2. Kimlik bilgilerinizin (hizmet hesabı veya kişisel hesabınızın) bu kovaya **'Depolama Nesnesi Görüntüleyici'** iznine sahip olduğundan.")
         st.info("3. İnternet bağlantınızın aktif olduğundan.")
         return None
+
+
+
+
+def saving_gcs(model_path):
+    BUCKET_NAME = os.environ["BUCKET_NAME"]
+    model_filename = model_path.name
+
+    client = storage.Client()
+    bucket = client.bucket(BUCKET_NAME)
+    blob = bucket.blob(f"{model_filename}")
+    blob.upload_from_filename(str(model_path))
+
+    print("😅 Model saved!")
+    return None

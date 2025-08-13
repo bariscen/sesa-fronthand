@@ -99,8 +99,8 @@ def rag(file_path):
     return text
 
 def referans(df, target_sector, ulke):
-    en_cok_benzeyen = df[(df['Ülke'] == ulke) & (df['Sektor'] == target_sector)]['Musteri'].to_dict()
-    ayni_ulke = df[(df['Ülke'] == ulke)]['Musteri'].head().to_dict()
+    en_cok_benzeyen = df[(df['COUNTRY'] == ulke) & (df['Sektor'] == target_sector)]['Musteri'].to_dict()
+    ayni_ulke = df[(df['COUNTRY'] == ulke)]['Musteri'].head().to_dict()
     ayni_sektor = df[(df['Sektor'] == target_sector)]['Musteri'].head().to_dict()
     referanslar = {}
     referanslar['Same country and same sector'] = en_cok_benzeyen

@@ -9,7 +9,7 @@ import pickle
 import matplotlib.pyplot as plt
 import seaborn as sns
 import streamlit as st
-from app.function import read_gcs_blob_content
+from app.function import read_gcs_blob_content, saving_gcs
 from app.gpt import get_observation, extract_sector, rag, referans, generate_better_email, create_personalized_email, extract_state
 
 
@@ -158,6 +158,7 @@ def email(company_name, state, position, name):
 
 if uploaded_file is not None:
     if st.button("Mail Dönüşümü Başlat"):
+        
         df['Email_icerik'] = df.apply(lambda row: email(row['Company'], row['Country'], row['Title'], row['First Name']), axis=1)
         df['Email Atıldı'] =  pd.to_datetime
         df['Soğuk Arama Gerçekleşti'] = pd.to_datetime
