@@ -143,18 +143,57 @@ if uploaded_file is not None:
         st.dataframe(df)
     except Exception as e:
         st.error(f"❌ CSV okunurken hata oluştu: {e}")
+# --- ek importlar (YENİ) ---
+import time, random
+from pathlib import Path
+
+# --- hafif throttle (YENİ) ---
+def _throttle(calls_per_minute=12):
+    key = "_last_llm_ts"
+    interval = 60.0 / calls_per_minute
+    last = st.session_state.get(key, 0.0)
+    now = time.time()
+    wait = (last + interval) - now
+    if wait > 0:
+        time.sleep(wait)
+    st.session_state[key] = time.time()
+
+# --- basit backoff sarmalayıcı (YENİ) ---
+def _backoff_call(fn, *args, **kwargs):
+    for i in range(6):  # max 6 deneme
+        try:
+            return fn(*args, **kwargs)
+        except Exception as e:
+            msg = str(e).lower()
+            if "rate limit" in msg or "429" in msg or "rate_limit_exceeded" in msg:
+                time.sleep(min(2**i, 30) + random.random())  # üstel + jitter
+            else:
+                raise
+    raise RuntimeError("Rate limit denemeleri tükendi")
+
+# --- caching (YENİ): aynı inputta yeniden çalışmasın ---
+@st.cache_data(show_spinner=False)
+def _rag_cached(pdf_path_str: str):
+    return rag(Path(pdf_path_str))
+
+@st.cache_data(show_spinner=False)
+def _observation_cached(company_name: str):
+    return get_observation(company_name)
 
 def email(company_name, state, position, name):
-        tavily_res = get_observation(company_name)
+        tavily_res = _observation_cached(company_name)
         #st.write(tavily_res)
         target_sector = extract_sector(tavily_res)
         ulke_kodu = extract_state(state)
         #st.write(target_sector)
 
         pdf_path = current_dir / "data" / "RAG-SESA.pdf"
-        context = rag(pdf_path)
+        context =  _rag_cached(str(pdf_path))
         referanslar = referans(sektor_ulke, target_sector, ulke_kodu)
-        result = generate_better_email(tavily_res, position,target_sector , context, company_name, referanslar)
+        _throttle(12)
+        result = _backoff_call(
+            generate_better_email,tavily_res, position, target_sector, context, company_name, referanslar)
+
         final = create_personalized_email(result, name)
         st.write('----------🧭 TAMAMLANDI, SIRADAKİNE GEÇİLİYOR -------------')
         return final
@@ -163,9 +202,10 @@ if uploaded_file is not None:
     if st.button("Mail Dönüşümü Başlat"):
 
         df['Email_icerik'] = df.apply(lambda row: email(row['Company'], row['Country'], row['Title'], row['First Name']), axis=1)
-        df['Email Atıldı'] =  pd.to_datetime
-        df['Soğuk Arama Gerçekleşti'] = pd.to_datetime
-        df['linkedin Eklendi'] = pd.to_datetime
+        df['Email Atıldı'] = pd.NaT
+        df['Soğuk Arama Gerçekleşti'] = pd.NaT
+        df['linkedin Eklendi'] = pd.NaT
+
         st.session_state['email_df'] = df[['Country', 'Company', 'Website', 'Company Phone', 'First Name', 'Last Name', 'Title', 'Departments', 'Corporate Phone', 'Person Linkedin Url',  'Email', 'Email_icerik', 'Email Atıldı',  'Soğuk Arama Gerçekleşti', 'linkedin Eklendi']]
 
     st.dataframe(st.session_state['email_df'])

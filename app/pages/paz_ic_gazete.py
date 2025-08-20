@@ -148,7 +148,7 @@ with st.container():
 import streamlit as st
 
 # Title
-st.title("AYLIK GAZETE OLUŞTURUCUSUNA HOŞ")
+st.title("AYLIK GAZETE OLUŞTURUCUSUNA HOŞGELDİN")
 
 # Create a form with a box layout
 with st.form("Gazete içeriği"):
