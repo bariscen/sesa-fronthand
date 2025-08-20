@@ -4,11 +4,7 @@ import pandas as pd
 import os
 from pathlib import Path
 
-import sys, pathlib
-print("CWD=", pathlib.Path().resolve())
-print("sys.path[:3]=", sys.path[:3]
 
-st.set_page_config(initial_sidebar_state="collapsed")
 
 st.markdown(
     """
