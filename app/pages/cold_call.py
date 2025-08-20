@@ -176,23 +176,23 @@ if uploaded_file is not None:
 
         res = df["Company"].apply(cold_call_cevir)           # Series of tuples
         df[["report", "score"]] = pd.DataFrame(res.tolist(), index=df.index)
-        
+
         df['Soğuk Arama Gerçekleşti'] = pd.NaT
         df['linkedin Eklendi'] = pd.NaT
 
-        st.session_state['email_df'] = df[['Country', 'Company', 'Website', 'Company Phone', 'First Name', 'Last Name', 'Title', 'Departments', 'Corporate Phone', 'Person Linkedin Url',  'Email', 'Email_icerik', 'Email Atıldı',  'Soğuk Arama Gerçekleşti', 'linkedin Eklendi']]
+        st.session_state['cold_call'] = df[['Country', 'Company', 'Website', 'Company Phone', 'First Name', 'Last Name', 'Title', 'Departments', 'Corporate Phone', 'Person Linkedin Url',  'Email', 'report', 'score']]
 
-    st.dataframe(st.session_state['email_df'])
+    st.dataframe(st.session_state['cold_call'])
 
     import io
 
-if 'email_df' in st.session_state:
-    #st.dataframe(st.session_state['email_df'])
+if 'cold_call' in st.session_state:
+    #st.dataframe(st.session_state['cold_call'])
 
     # Excel'e yazmak için BytesIO buffer oluştur
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        st.session_state['email_df'].to_excel(writer, index=False, sheet_name='Emails')
+        st.session_state['cold_call'].to_excel(writer, index=False, sheet_name='Emails')
     output.seek(0)
 
     # Excel indirme butonu
