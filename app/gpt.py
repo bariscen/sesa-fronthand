@@ -204,7 +204,7 @@ import re
 
 
 import re
-from typing import List, Optional, Dict
+from typing import Optional, Dict, List
 from openai import OpenAI
 
 client = OpenAI()
@@ -213,7 +213,8 @@ client = OpenAI()
 SCORE_RE = re.compile(r"Kısa cevap:\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10\b", re.I)
 def _extract_score(text: str) -> Optional[float]:
     m = SCORE_RE.search(text or "")
-    if not m: return None
+    if not m:
+        return None
     s = m.group(1).replace(",", ".")
     try:
         x = float(s)
@@ -221,7 +222,7 @@ def _extract_score(text: str) -> Optional[float]:
     except Exception:
         return None
 
-# --- Ülke/dil kısayolları (kısa & net anahtarlar) ---
+# --- Ülke/dil kısayolları ---
 REGION_CFG: Dict[str, Dict[str, List[str]]] = {
     "FR":{"lang":"FR","kw":["emballage plastique","sachet","doypack","film plastique","lidding","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrière"]},
     "DE":{"lang":"DE","kw":["Kunststoffverpackung","Beutel","Doypack","Sachet","Lidding","Mono-PE","Mono-PP","recycelbar","EVOH","AlOx","SiOx","Barriere"]},
@@ -232,19 +233,19 @@ REGION_CFG: Dict[str, Dict[str, List[str]]] = {
     "EN":{"lang":"EN","kw":["plastic packaging","pouch","doypack","sachet","lidding film","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrier"]},
 }
 
-# --- Kısa & net Prompt (tek görev, 7 blok çıktı, kaynak zorunlu) ---
+# --- Kısa & net prompt ---
 BASE_PROMPT = """ROLE: Flexible packaging için kanıta-dayalı B2B araştırmacısın.
 
 TASK: "{COMPANY}" hakkında yalnız web kanıtına dayanarak cevap ver.
 LANG/COUNTRY: {LANG}
 FOCUS: format (pouch/doypack, lidding film, sachet), malzeme (mono-PE/PP, recyclable, foil/EVOH/AlOx/SiOx), baskı (digital/gravure), sürdürülebilirlik.
 
-RULES (kısa):
-- Önce resmî siteyi bul (ülkeye uygun TLD varsa onu tercih et), sonra 2–4 bağımsız kaynak (NGO/haber/veritabanı).
-- {KW_HINT}
+RULES:
+- Önce resmî siteyi bul (ülkeye uygun TLD varsa onu tercih et), sonra 2–4 bağımsız kaynak.
+- Ara: {COMPANY} + ({KW_HINT}); resmi sitede “sustainability/packaging/product” sayfaları; bağımsız kaynakta marka eşleşmesi şart.
 - Kanıt yoksa “Bilinmiyor” de; uydurma yapma.
 - Her iddiayı kısa alıntı (“…”) ve yıl/yüzde ile destekle.
-- Yalnız 7 blok yaz; placeholder ([URL]) kullanma; gerçek URL ver.
+- Yalnız 7 blok yaz; placeholder ([URL]) kullanma; gerçek URL ver. İç muhakemeni gösterme.
 
 OUTPUT (tam bu yapı):
 1) Kısa cevap:
@@ -277,47 +278,43 @@ OUTPUT (tam bu yapı):
 def _prompt_for(company: str, country: str) -> str:
     cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
     kw = cfg["kw"]
-    kw_hint = f"Ara: {company} + ({', '.join(kw[:6])}); resmi sitede 'sustainability/packaging/product' sayfaları; bağımsız kaynakta marka adıyla eşleşme."
+    kw_hint = ", ".join(kw[:6])
     return (BASE_PROMPT
             .replace("{COMPANY}", company)
             .replace("{LANG}", cfg["lang"])
             .replace("{KW_HINT}", kw_hint))
 
-def _call_once(prompt: str, effort: str = "high", seed: int = 7):
-    params = {
-        "model": "gpt-4o",                      # dil+web için iyi genel model
-        "temperature": 0.2,
-        "max_output_tokens": 1400,              # uzun 7 blok için alan
-        "seed": seed,
-        "tools": [{"type": "web_search"}],      # OpenAI web araması
-        "tool_choice": "auto",
-        "input": [{"role":"user","content":[{"type":"input_text","text": prompt}]}]
-    }
-    # reasoning destekli modellerde (örn. o3/o4) şu alan da işe yarar; desteklemiyorsa yoksayılır:
-    params["reasoning"] = {"effort": effort}
-    resp = client.responses.create(**params)
+def _call_once(prompt: str) -> str:
+    resp = client.responses.create(
+        model="gpt-4o",
+        temperature=0.2,
+        max_output_tokens=1400,
+        tools=[{"type": "web_search"}],     # hesabında açıksa OpenAI web araması
+        tool_choice="auto",
+        input=[{"role":"user","content":[{"type":"input_text","text": prompt}]}]
+    )
     return resp.output_text
 
 def cold_call_cevir(company_name: str, country: str = "EN"):
     """
-    Yüksek düşünme + 2 geçişli web araması; (text, score) döndürür.
+    Kısa & net prompt + 2 geçiş. (text, score) döndürür.
     """
     prompt = _prompt_for(company_name, country)
 
-    # Geçiş 1: yüksek reasoning
-    text = _call_once(prompt, effort="high", seed=11)
+    # Geçiş 1
+    text = _call_once(prompt)
     score = _extract_score(text)
 
-    # Zayıfsa/“Bilinmiyor” ise Geçiş 2: agresif tekrar (PDF/marka/yerel dil vurgusu)
+    # Zayıfsa/“Bilinmiyor” veya placeholder URL varsa Geçiş 2 (daha ısrarcı talimat)
     if (score is None) or (score <= 2.0) or ("Bilinmiyor" in (text or "")) or ("[URL]" in (text or "")):
         fix = (
-            "\n\n2nd PASS (daha derin):\n"
-            "- PDF sonuçlarını özellikle tara; yıl ve yüzdeyi alıntıla.\n"
-            "- Marka/ürün sayfalarını ve Open Food Facts/NGO kayıtlarını ekle.\n"
-            "- En az 3 kaynak (1 resmi site), gerçek URL ver; placeholder kullanma.\n"
+            "\n\n2nd PASS:\n"
+            "- PDF sonuçlarını özellikle tara; yıl ve yüzdeleri alıntıla.\n"
+            "- Marka/ürün sayfaları ve Open Food Facts/NGO kayıtlarını ekle.\n"
+            "- En az 3 kaynak (1 resmi site) ve gerçek URL ver; placeholder kullanma.\n"
             "- Kanıt yetersizse yine 'Bilinmiyor' de."
         )
-        text = _call_once(prompt + fix, effort="high", seed=29)
+        text = _call_once(prompt + fix)
         score = _extract_score(text)
 
     return text, score
