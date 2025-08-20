@@ -144,6 +144,35 @@ if uploaded_file is not None:
         st.dataframe(df)
     except Exception as e:
         st.error(f"❌ CSV okunurken hata oluştu: {e}")
+
+# === ÜLKE SEÇİMİ (GENEL VARSAYILAN) ===
+allowed = ["EN","FR","DE","UK","ES","IT","TR"]
+
+country_box = st.selectbox("Ülke/Lokal (ara dili)", allowed, index=0,
+                           help="Arama dili/ülke önceliği. EN=Genel İngilizce")
+
+# Opsiyonel: serbest metinle kod girilirse map et
+RAW = st.text_input("Ülke kodu (opsiyonel, örn: FR/DE/UK/ES/IT/TR/EN)")
+MAP = {
+    "fr":"FR","france":"FR",
+    "de":"DE","germany":"DE","deutschland":"DE",
+    "uk":"UK","united kingdom":"UK","gb":"UK",
+    "es":"ES","spain":"ES","españa":"ES",
+    "it":"IT","italy":"IT","italia":"IT",
+    "tr":"TR","turkey":"TR","türkiye":"TR",
+    "en":"EN","english":"EN"
+}
+country_code = country_box  # varsayılan
+if RAW.strip():
+    country_code = MAP.get(RAW.strip().lower(), RAW.strip().upper())
+    if country_code not in allowed:
+        st.warning(f"Geçersiz ülke kodu: {country_code}. EN kullanılacak.")
+        country_code = "EN"
+
+# İleride kullanmak için session_state'e koy
+st.session_state["country_default"] = country_code
+
+
 # --- ek importlar (YENİ) ---
 import time, random
 from pathlib import Path
@@ -183,7 +212,19 @@ if uploaded_file is not None:
                 else:
                     row_msg_ph.write(f"🔎 {i}/{total} — **{company_name}** işleniyor…")
                     try:
-                        report, score = cold_call_cevir(company_name,state)
+                        # satıra özel ülke kodu (CSV'de Country/State varsa oradan; yoksa genel seçim)
+                        row_country = st.session_state.get("country_default", "EN")
+                        for cand in ["Country","State","country","state"]:
+                            if cand in df.columns:
+                                raw = str(df.at[idx, cand] or "").strip()
+                                if raw:
+                                    rc = MAP.get(raw.lower(), raw.upper())
+                                    if rc in allowed:
+                                        row_country = rc
+                                break
+
+                        report, score = cold_call_cevir(company_name, country=row_country)
+
                     except Exception as e:
                         report, score = f"Hata: {e}", None
 
