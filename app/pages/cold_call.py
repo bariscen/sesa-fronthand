@@ -264,23 +264,23 @@ if uploaded_file is not None:
                                                 'report', 'score']]
 
     # Varsa göster (butona basmadan önce KeyError olmasın)
-if st.session_state['cold_call'] is not None:
-    st.dataframe(st.session_state['cold_call'])
+    if st.session_state['cold_call'] is not None:
+        st.dataframe(st.session_state['cold_call'])
 
-# --- indirme bölümü aynı kalabilir, sadece korumalı erişim: ---
-if st.session_state.get('cold_call') is not None:
-# DF'i JSON'a çevir (cache için stabil girdi)
-    df_json = st.session_state['cold_call'].to_json(orient="split")
+    # --- indirme bölümü aynı kalabilir, sadece korumalı erişim: ---
+    if st.session_state.get('cold_call') is not None:
+    # DF'i JSON'a çevir (cache için stabil girdi)
+        df_json = st.session_state['cold_call'].to_json(orient="split")
 
-    # Baytları sadece veri değişince üret (cache'li fonksiyon)
-    xlsx_bytes = df_to_xlsx_bytes(df_json)
+        # Baytları sadece veri değişince üret (cache'li fonksiyon)
+        xlsx_bytes = df_to_xlsx_bytes(df_json)
 
-    # (Opsiyonel) session_state'te sakla
-    st.session_state['xlsx_bytes'] = xlsx_bytes
+        # (Opsiyonel) session_state'te sakla
+        st.session_state['xlsx_bytes'] = xlsx_bytes
 
-    st.download_button(
-        label="📥 Excel olarak indir",
-        data=xlsx_bytes,
-        file_name="kontakt_listesi.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+        st.download_button(
+            label="📥 Excel olarak indir",
+            data=xlsx_bytes,
+            file_name="kontakt_listesi.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
