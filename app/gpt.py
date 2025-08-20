@@ -207,6 +207,10 @@ import re
 from typing import Optional, Dict, List
 from openai import OpenAI
 
+import re, json
+from typing import Optional, Dict, List, Any
+from openai import OpenAI
+
 client = OpenAI()
 
 # --- Skor yakalama ---
@@ -222,99 +226,208 @@ def _extract_score(text: str) -> Optional[float]:
     except Exception:
         return None
 
-# --- Ülke/dil kısayolları ---
+# --- Bölgesel kısayollar ---
 REGION_CFG: Dict[str, Dict[str, List[str]]] = {
-    "FR":{"lang":"FR","kw":["emballage plastique","sachet","doypack","film plastique","lidding","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrière"]},
-    "DE":{"lang":"DE","kw":["Kunststoffverpackung","Beutel","Doypack","Sachet","Lidding","Mono-PE","Mono-PP","recycelbar","EVOH","AlOx","SiOx","Barriere"]},
-    "UK":{"lang":"EN","kw":["plastic packaging","pouch","doypack","sachet","lidding film","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrier"]},
-    "ES":{"lang":"ES","kw":["envase plástico","bolsa","doypack","sachet","film tapa","mono-PE","mono-PP","reciclable","EVOH","AlOx","SiOx","barrera"]},
-    "IT":{"lang":"IT","kw":["imballaggio plastico","busta","doypack","sacchetto","lidding","mono-PE","mono-PP","riciclabile","EVOH","AlOx","SiOx","barriera"]},
-    "TR":{"lang":"TR","kw":["plastik ambalaj","poşet","doypack","sachet","lidding film","mono PE","mono PP","geri dönüştürülebilir","EVOH","AlOx","SiOx","bariyer"]},
-    "EN":{"lang":"EN","kw":["plastic packaging","pouch","doypack","sachet","lidding film","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrier"]},
+    "FR":{"lang":"FR","kw":["emballage plastique","sachet","doypack","film plastique","lidding","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrière"],
+          "indep":["label-pmeplus.fr","foodwatch.org","reporterre.net","openfoodfacts.org","packagingeurope.com"]},
+    "DE":{"lang":"DE","kw":["Kunststoffverpackung","Beutel","Doypack","Sachet","Lidding","Mono-PE","Mono-PP","recycelbar","EVOH","AlOx","SiOx","Barriere"],
+          "indep":["verpackung.org","lebensmittelzeitung.net","bvse.de","openfoodfacts.org","packagingeurope.com"]},
+    "UK":{"lang":"EN","kw":["plastic packaging","pouch","doypack","sachet","lidding film","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrier"],
+          "indep":["wrap.org.uk","thegrocer.co.uk","packagingnews.co.uk","openfoodfacts.org","packagingeurope.com"]},
+    "ES":{"lang":"ES","kw":["envase plástico","bolsa","doypack","sachet","film tapa","mono-PE","mono-PP","reciclable","EVOH","AlOx","SiOx","barrera"],
+          "indep":["packnet.es","envaspres.com","openfoodfacts.org","packagingeurope.com"]},
+    "IT":{"lang":"IT","kw":["imballaggio plastico","busta","doypack","sacchetto","lidding","mono-PE","mono-PP","riciclabile","EVOH","AlOx","SiOx","barriera"],
+          "indep":["packmedia.net","conai.org","openfoodfacts.org","packagingeurope.com"]},
+    "TR":{"lang":"TR","kw":["plastik ambalaj","poşet","doypack","sachet","lidding film","mono PE","mono PP","geri dönüştürülebilir","EVOH","AlOx","SiOx","bariyer"],
+          "indep":["ambalaj.org.tr","packagingturkey.com","openfoodfacts.org","packagingeurope.com"]},
+    "EN":{"lang":"EN","kw":["plastic packaging","pouch","doypack","sachet","lidding film","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrier"],
+          "indep":["openfoodfacts.org","packagingeurope.com","packaginginsights.com"]},
 }
 
-# --- Kısa & net prompt ---
-BASE_PROMPT = """ROLE: Flexible packaging için kanıta-dayalı B2B araştırmacısın.
+# --- Aşama 1: Kaynak topla (JSON) ---
+SOURCES_SCHEMA = {
+  "name":"PkgSources",
+  "schema": {
+    "type":"object",
+    "properties":{
+      "official":{"type":"string", "description":"Şirketin resmî web sitesi alan adı (ör. example.com)"},
+      "items":{
+        "type":"array",
+        "items":{
+          "type":"object",
+          "properties":{
+            "url":{"type":"string"},
+            "title":{"type":"string"},
+            "site_type":{"type":"string","enum":["official","independent"]},
+            "date":{"type":"string","description":"YYYY veya YYYY-MM-DD gibi"},
+            "quote":{"type":"string","description":"<=20 kelimelik kısa alıntı"}
+          },
+          "required":["url","site_type"]
+        }
+      }
+    },
+    "required":["items"]
+  },
+  "strict": True
+}
 
-TASK: "{COMPANY}" hakkında yalnız web kanıtına dayanarak cevap ver.
-LANG/COUNTRY: {LANG}
-FOCUS: format (pouch/doypack, lidding film, sachet), malzeme (mono-PE/PP, recyclable, foil/EVOH/AlOx/SiOx), baskı (digital/gravure), sürdürülebilirlik.
+def _source_harvest_prompt(company: str, country: str) -> str:
+    cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
+    kw = ", ".join(cfg["kw"][:6])
+    indep = ", ".join(cfg["indep"][:4])
+    main_token = company.split()[0]
 
-RULES:
-- Önce resmî siteyi bul (ülkeye uygun TLD varsa onu tercih et), sonra 2–4 bağımsız kaynak.
-- Ara: {COMPANY} + ({KW_HINT}); resmi sitede “sustainability/packaging/product” sayfaları; bağımsız kaynakta marka eşleşmesi şart.
-- Kanıt yoksa “Bilinmiyor” de; uydurma yapma.
-- Her iddiayı kısa alıntı (“…”) ve yıl/yüzde ile destekle.
-- Yalnız 7 blok yaz; placeholder ([URL]) kullanma; gerçek URL ver. İç muhakemeni gösterme.
+    return f"""
+ROLE: Web araştırmacısı.
+GOAL: Aşağıdaki sorgularla kaynak topla ve JSON döndür (şema verildi). Gerçek URL ver; placeholder kullanma.
 
-OUTPUT (tam bu yapı):
-1) Kısa cevap:
-- Evet./Hayır./Bilinmiyor. {COMPANY} … (YYYY, “kısa alıntı”). …
+COMPANY: {company}
+LANG/COUNTRY: {cfg['lang']}
+SEARCH QUERIES (çalıştır):
+1) "{company}" site:*.com OR site:*.{country.lower()}  ("about" OR "notre" OR "qui sommes" OR "über")  -> OFFICIAL
+2) "{company}" packaging OR "emballage" OR "sustainability" OR "environment"
+3) "{main_token}" brand OR "marque" OR "marke"  packaging OR "emballage"
+4) "{company}" doypack OR pouch OR "sachet" OR "lidding" OR "film plastique"
+5) "{company}" site:openfoodfacts.org
+6) ("{company}" OR "{main_token}") site:{indep.replace(',', ' OR site:')}
+
+RESULT RULES:
+- En az 1 "official" ve en az 2 "independent" kayıt ver.
+- PDF varsa aç ve <=20 kelime kısa alıntı çek ("…").
+- "quote" alanında tarih/yüzde gibi en kuvvetli kanıtı ver.
+- Dönüş sadece JSON olsun (şema: PkgSources).
+"""
+
+def _harvest_sources(company: str, country: str) -> Dict[str, Any]:
+    prompt = _source_harvest_prompt(company, country)
+    resp = client.responses.create(
+        model="gpt-4o",
+        tools=[{"type":"web_search"}],
+        tool_choice="auto",
+        temperature=0.1,
+        max_output_tokens=1200,
+        response_format={"type":"json_schema","json_schema":SOURCES_SCHEMA},
+        input=[{"role":"user","content":[{"type":"input_text","text":prompt}]}]
+    )
+    try:
+        data = json.loads(resp.output[0].content[0].text)
+    except Exception:
+        data = {"items":[]}
+
+    # Yetersizse daha agresif ikinci tarama
+    need_retry = True
+    if data.get("items"):
+        types = [it.get("site_type") for it in data["items"] if isinstance(it, dict)]
+        if "official" in types and types.count("independent") >= 2:
+            need_retry = False
+
+    if need_retry:
+        fix = "\n\n2nd PASS: PDF öncelikli tara; marka/alias olasılıklarını dene (örn. tüketici markası), FR/DE/ES/IT/TR lokal kelimelerle yeniden ara. En az 1 official + 2 independent şart."
+        resp2 = client.responses.create(
+            model="gpt-4o",
+            tools=[{"type":"web_search"}],
+            tool_choice="auto",
+            temperature=0.1,
+            max_output_tokens=1400,
+            response_format={"type":"json_schema","json_schema":SOURCES_SCHEMA},
+            input=[{"role":"user","content":[{"type":"input_text","text":prompt + fix}]}]
+        )
+        try:
+            data2 = json.loads(resp2.output[0].content[0].text)
+            # basit birleştirme
+            if data.get("items") and data2.get("items"):
+                merged = {it["url"]:it for it in data.get("items",[])+data2.get("items",[])}
+                data = {"official": data.get("official") or data2.get("official"), "items": list(merged.values())}
+            elif data2.get("items"):
+                data = data2
+        except Exception:
+            pass
+
+    return data
+
+# --- Aşama 2: Sentez (7 blok) ---
+def _synthesize_prompt(company: str, country: str, sources: Dict[str, Any]) -> str:
+    cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
+    # Kaynak paketini düz metin olarak enjekte et
+    lines = []
+    official = sources.get("official") or ""
+    for it in sources.get("items", [])[:10]:
+        url = it.get("url","")
+        title = it.get("title","")
+        site_type = it.get("site_type","")
+        date = it.get("date","")
+        quote = it.get("quote","")
+        lines.append(f"- [{site_type}] {title} — {url} — {date} — “{quote}”")
+    pack = "\n".join(lines) if lines else "NONE"
+
+    return f"""
+ROLE: Esnek ambalaj B2B analisti.
+COUNTRY/LANG: {cfg['lang']}
+COMPANY: {company}
+OFFICIAL_HINT: {official or 'unknown'}
+
+USE ONLY THESE SOURCES (below) for evidence. Do NOT invent:
+{pack}
+
+Write the answer in **Turkish** with exactly these 7 blocks and nothing else:
+
+1) Kısa cevap (tek paragraf):
+- "Evet./Hayır./Bilinmiyor." + Şirket adı + en güçlü 1–2 kanıt + yıl/yüzde (varsa).
 
 2) Kaynak etiketleri:
-- Resmi site
-- (ör. Label PME+, Foodwatch, Reporterre / Packaging News / Open Food Facts …)
+- Örn: "Resmi site", "Label PME+", "Foodwatch", "Reporterre", "Open Food Facts", "Packaging Europe"
 
 3) Tek cümle öneri:
 - “İstersen, hangi formatları (doypack/pouch, lidding film, sachet) kullandıklarına dair kanıt arayıp hızlı bir özet de çıkarabilirim.”
 
 4) Skor:
-- Kısa cevap: X/10 (iyi/eşleşme/orta/zayıf)
+- "Kısa cevap: X/10 (iyi/eşleşme/orta/zayıf)"
 
-5) Neden?
+5) Neden? (madde madde, her madde sonunda [etiket])
 - Kategori uyumu: … [etiket]
 - Plastik kanıtı: … [etiket]
 - Sürdürülebilirlik/fırsat: … [etiket]
 
-6) Risk/Notlar:
-- … [etiket]
+6) Risk/Notlar (madde madde) [etiket]
 
-7) Kaynaklar:
+7) Kaynaklar (madde madde, "Etiket — URL"):
 - Etiket — URL
-- Etiket — URL
-- Etiket — URL
+
+KURALLAR:
+- Her iddiayı YUKARIDAKİ kaynaklardan birine dayandır ve etiketle.
+- Alıntıları "…" içinde kısa ver; URL’leri sadece 7. blokta yaz.
+- Kanıt yetersizse “Bilinmiyor” de (uydurma yapma).
 """
-
-def _prompt_for(company: str, country: str) -> str:
-    cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
-    kw = cfg["kw"]
-    kw_hint = ", ".join(kw[:6])
-    return (BASE_PROMPT
-            .replace("{COMPANY}", company)
-            .replace("{LANG}", cfg["lang"])
-            .replace("{KW_HINT}", kw_hint))
-
-def _call_once(prompt: str) -> str:
-    resp = client.responses.create(
-        model="gpt-4o",
-        temperature=0.2,
-        max_output_tokens=1400,
-        tools=[{"type": "web_search"}],     # hesabında açıksa OpenAI web araması
-        tool_choice="auto",
-        input=[{"role":"user","content":[{"type":"input_text","text": prompt}]}]
-    )
-    return resp.output_text
 
 def cold_call_cevir(company_name: str, country: str = "EN"):
     """
-    Kısa & net prompt + 2 geçiş. (text, score) döndürür.
+    İki aşamalı (ARA→SENTEZ) güvenilir akış.
+    Dönüş: (text, score)
     """
-    prompt = _prompt_for(company_name, country)
+    # 1) Kaynak topla
+    src = _harvest_sources(company_name, country)
 
-    # Geçiş 1
-    text = _call_once(prompt)
+    # 2) Kaynaklarla 7 blok sentez
+    syn_prompt = _synthesize_prompt(company_name, country, src)
+    resp = client.responses.create(
+        model="gpt-4o",
+        temperature=0.1,
+        max_output_tokens=1400,
+        input=[{"role":"user","content":[{"type":"input_text","text": syn_prompt}]}]
+    )
+    text = resp.output_text
     score = _extract_score(text)
 
-    # Zayıfsa/“Bilinmiyor” veya placeholder URL varsa Geçiş 2 (daha ısrarcı talimat)
-    if (score is None) or (score <= 2.0) or ("Bilinmiyor" in (text or "")) or ("[URL]" in (text or "")):
-        fix = (
-            "\n\n2nd PASS:\n"
-            "- PDF sonuçlarını özellikle tara; yıl ve yüzdeleri alıntıla.\n"
-            "- Marka/ürün sayfaları ve Open Food Facts/NGO kayıtlarını ekle.\n"
-            "- En az 3 kaynak (1 resmi site) ve gerçek URL ver; placeholder kullanma.\n"
-            "- Kanıt yetersizse yine 'Bilinmiyor' de."
+    # 3) Çok zayıfsa bir kez daha (ek ipucu: PDF/yerel dil/marka)
+    if (score is None) or (score <= 2.0) or ("Bilinmiyor" in (text or "")):
+        nudge = syn_prompt + "\n\nEK NOT: PDF ve yerel dil sayfalarına odaklan; tüketici markası/alias ihtimalini tekrar tara; en az 3 kaynak göster."
+        resp2 = client.responses.create(
+            model="gpt-4o",
+            temperature=0.1,
+            max_output_tokens=1500,
+            input=[{"role":"user","content":[{"type":"input_text","text": nudge}]}]
         )
-        text = _call_once(prompt + fix)
+        text = resp2.output_text
         score = _extract_score(text)
 
     return text, score
