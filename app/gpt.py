@@ -29,7 +29,7 @@ You are a research-oriented business analyst and B2B cold email strategist. Your
 Using the company data below, generate a short and insightful paragraph (2–3 sentences) that:
 
 - Demonstrates a deep understanding of the company's **position**, **strategy**, or **market**
-- Can reference packaging, innovation, growth, hiring, product focus, operations, or industry dynamics
+
 - Don't mention any dates.
 - Is grounded strictly in the data — no guesses or assumptions
 
@@ -39,6 +39,8 @@ Company Information:
 {company_info}
 """)
     ]
+
+   # - Can reference packaging, innovation, growth, hiring, product focus, operations, or industry dynamics
 
     response = llm(messages)
     return response.content.strip()
