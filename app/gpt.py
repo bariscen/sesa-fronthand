@@ -203,15 +203,15 @@ client = OpenAI()
 import re
 
 
+import re
+from typing import List, Optional, Dict
+from openai import OpenAI
+
 client = OpenAI()
 
 SCORE_RE = re.compile(r"Kısa cevap:\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10\b", re.IGNORECASE)
 
 def _extract_score(text: str):
-    """
-    Metindeki 'Kısa cevap: X/10' deseninden skoru (float) çeker.
-    Bulamazsa None döner.
-    """
     m = SCORE_RE.search(text or "")
     if not m:
         return None
@@ -220,18 +220,88 @@ def _extract_score(text: str):
         val = float(s)
     except ValueError:
         return None
-    # 0-10 aralığına kırp
     return max(0.0, min(10.0, val))
 
-def cold_call_cevir(COMPANY_NAME: str):
-    PROMPT = """ROLE: Esnek ambalaj (flexible packaging) alanında kanıta-dayalı B2B araştırmacısın.
+# Ülkeye/dile göre anahtarlar ve kaynak ipuçları
+REGION_CFG: Dict[str, Dict[str, List[str]]] = {
+    "FR": {
+        "lang_label": "FR",
+        "keywords": [
+            "emballage plastique","sachet","doypack","film plastique","lidding/top web",
+            "mono-matériau PE","mono-matériau PP","recyclable","EVOH","AlOx","SiOx","barrière élevée","zippé"
+        ],
+        "sources": ["label-pmeplus.fr","foodwatch.org","reporterre.net","openfoodfacts.org"]
+    },
+    "DE": {
+        "lang_label": "DE",
+        "keywords": [
+            "Kunststoffverpackung","Beutel","Doypack","Sachet","Deckelfolie","Lidding",
+            "Mono-PE","Mono-PP","recycelbar","EVOH","AlOx","SiOx","hohe Barriere"
+        ],
+        "sources": ["verpackung.org","bvse.de","lebensmittelzeitung.net"]
+    },
+    "UK": {  # UK odaklı İngilizce
+        "lang_label": "EN",
+        "keywords": [
+            "plastic packaging","pouch","doypack","sachet","lidding film",
+            "mono-material PE","mono-material PP","recyclable","EVOH","AlOx","SiOx","high barrier","zip"
+        ],
+        "sources": ["wrap.org.uk","thegrocer.co.uk","packagingnews.co.uk"]
+    },
+    "ES": {  # İSPANYOLCA
+        "lang_label": "ES",
+        "keywords": [
+            "envase plástico","bolsa","doypack","sachet","film de tapa",
+            "monomaterial PE","monomaterial PP","reciclable","EVOH","AlOx","SiOx","alta barrera","zip"
+        ],
+        "sources": ["packnet.es","envaspres.com","foodwatch.org","openfoodfacts.org"]
+    },
+    "IT": {  # İTALYANCA
+        "lang_label": "IT",
+        "keywords": [
+            "imballaggio plastico","busta","doypack","sacchetto","film di lidding",
+            "mono-materiale PE","mono-materiale PP","riciclabile","EVOH","AlOx","SiOx","alta barriera","zip"
+        ],
+        "sources": ["packmedia.net","conai.org","packagingspace.net"]
+    },
+    "TR": {  # TÜRKÇE
+        "lang_label": "TR",
+        "keywords": [
+            "plastik ambalaj","poşet","doypack","sachet","kapak filmi","lidding film",
+            "mono PE","mono PP","geri dönüştürülebilir","EVOH","AlOx","SiOx","yüksek bariyer","fermuarlı"
+        ],
+        "sources": ["ambalaj.org.tr","packagingturkey.com","openfoodfacts.org"]
+    },
+    "EN": {  # genel İngilizce (varsayılan)
+        "lang_label": "EN",
+        "keywords": [
+            "plastic packaging","pouch","doypack","sachet","lidding film",
+            "mono-material PE","mono-material PP","recyclable","EVOH","AlOx","SiOx","high barrier","zipper"
+        ],
+        "sources": ["packagingeurope.com","packaginginsights.com","openfoodfacts.org"]
+    }
+}
 
-GÖREV: "{COMPANY_NAME}" için webde (önce resmî site/marka sayfaları) kanıt topla ve aşağıdaki çıktıyı üret.
+BASE_PROMPT = """ROLE: Esnek ambalaj (flexible packaging) alanında kanıta-dayalı B2B araştırmacısın.
+
+GÖREV: "{COMPANY}" (eşadlar: {ALIASES}) için webde (önce resmî site/marka sayfaları) kanıt topla ve aşağıdaki çıktıyı üret.
 - Web araması yap, 3–6 güvenilir kaynaktan veri çek. En az 1 kaynak resmî site olmalı.
 - Yalnızca sitede AÇIKÇA yazan şeyleri “kanıt” say. Sezgi/yorumları “Risk/Notlar”a yaz.
 - Tarihleri belirt (örn. "2020", "2023-05"). Yüzdeleri ve iddiaları kısa alıntıyla (≤20 kelime) destekle.
 - Plastik ambalaj kullanımı için paket formatları (pouch/doypack, lidding/top web, sachet), malzemeler (mono-PE/PP, recyclable, foil/EVOH/AlOx/SiOx), baskı (digital/gravure) ve sürdürülebilirlik ifadeleri aransın.
 - Yeterli kanıt yoksa "Bilinmiyor" de; uydurma yapma.
+
+BÖLGE & DİL ÖNCELİĞİ: {LANG_LABEL}
+Yerel anahtarlar: {LOCAL_KEYWORDS}
+Tercihli kaynak alan adları: {PREF_SOURCES}
+
+Marka/şirket ayrımı gerekiyorsa marka sayfalarını da tara.
+
+HEDEF ARAMA FİKİRLERİ:
+- "site:{ROOT_HINT} {OR_TERMS}"
+- "{COMPANY} {OR_TERMS}"
+- "{AL1} {OR_TERMS}"
+- "site:{SRC1} {AL1}"  |  "site:{SRC2} {AL1}"  |  "site:{SRC3} {AL1}"
 
 ÇIKTI FORMATIN (Türkçe, aynen bu blok yapısı):
 1) Kısa cevap (tek paragraf):
@@ -240,7 +310,7 @@ GÖREV: "{COMPANY_NAME}" için webde (önce resmî site/marka sayfaları) kanıt
   Evet. {Şirket} ürünlerinde plastik ambalaj kullanıyor/kullandı. {YYYY}’de {kısa kanıt}. {YYYY}’de {kısa kanıt}.
 
 2) Kaynak etiketleri (yalın satırlar, kurum/etiket + isteğe bağlı dil/ülke):
-- Örnek: "Label PME+", "Foodwatch EN", "Reporterre", "Resmi site"
+- Örnek: "Label PME+", "Foodwatch EN/FR/DE/ES/IT/TR", "Reporterre", "Resmi site"
 
 3) Tek cümle öneri:
 - “İstersen, hangi formatları (doypack/pouch, lidding film, sachet) kullandıklarına dair kanıt arayıp hızlı bir özet de çıkarabilirim.”
@@ -259,8 +329,8 @@ GÖREV: "{COMPANY_NAME}" için webde (önce resmî site/marka sayfaları) kanıt
 
 7) Kaynaklar (madde madde, "Etiket — URL" şeklinde):
 - Label PME+ — <url>
-- Foodwatch EN — <url>
-- Reporterre — <url>
+- Foodwatch — <url>
+- (Yerel/İlgili Kaynak) — <url>
 - Resmi site — <url>
 
 KURALLAR:
@@ -270,17 +340,64 @@ KURALLAR:
 - Kanıt tarihi eskiyse belirt; çelişki varsa uyar.
 - Çıktıda sadece belirtilen 7 blok olsun, fazladan açıklama yazma.
 """
-    prompt = PROMPT.replace("{COMPANY_NAME}", COMPANY_NAME)
 
-    resp = client.responses.create(
-        model="gpt-4o",
-        tools=[{"type": "web_search"}],  # hesabında açıksa web araması yapar
-        input=[{
-            "role": "user",
-            "content": [{"type": "input_text", "text": prompt}]
-        }]
-    )
+def _aliases_for(company: str, aliases: Optional[List[str]] = None) -> List[str]:
+    # Artık özel-case yok; sadece dışarıdan gelenleri kullan
+    return list(dict.fromkeys(aliases or []))  # uniq koru, sırayı bozmadan
 
+def _prompt_for(company: str, country: str, aliases: Optional[List[str]] = None):
+    cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
+    al_list = _aliases_for(company, aliases)
+    al1 = al_list[0] if al_list else company
+    root_hint = f"{company.split()[0].lower()}.com"  # kaba ipucu; model düzeltir
+    or_terms = " OR ".join(cfg["keywords"][:6])      # çok uzamasın
+
+    prompt = (BASE_PROMPT
+              .replace("{COMPANY}", company)
+              .replace("{ALIASES}", ", ".join(al_list) if al_list else "—")
+              .replace("{LANG_LABEL}", cfg["lang_label"])
+              .replace("{LOCAL_KEYWORDS}", ", ".join(cfg["keywords"]))
+              .replace("{PREF_SOURCES}", ", ".join(cfg["sources"]))
+              .replace("{ROOT_HINT}", root_hint)
+              .replace("{OR_TERMS}", or_terms)
+              .replace("{AL1}", al1)
+              .replace("{SRC1}", cfg["sources"][0] if cfg["sources"] else "example.com")
+              .replace("{SRC2}", cfg["sources"][1] if len(cfg["sources"])>1 else "example.org")
+              .replace("{SRC3}", cfg["sources"][2] if len(cfg["sources"])>2 else "example.net")
+              )
+    return prompt
+
+def _call_once(prompt: str, use_web=True):
+    params = {
+        "model": "gpt-4o",
+        "input": [{"role": "user", "content": [{"type": "input_text", "text": prompt}]}]
+    }
+    if use_web:
+        params["tools"] = [{"type": "web_search"}]
+    resp = client.responses.create(**params)
     text = resp.output_text
-    score = _extract_score(text)  # float veya None
+    score = _extract_score(text)
+    return text, score
+
+def cold_call_cevir(company_name: str, country: str = "EN",
+                    aliases: Optional[List[str]] = None, use_web: bool = True):
+    """
+    company_name: Şirket adı (örn. "Daco France")
+    country: "FR" | "DE" | "UK" | "ES" | "IT" | "TR" | "EN"
+    aliases: ["Marka Adı", ...] gibi eşadlar (opsiyonel)
+    use_web: Web arama aracı açıksa True bırak
+    """
+    prompt = _prompt_for(company_name, country, aliases)
+    text, score = _call_once(prompt, use_web=use_web)
+
+    # Başarısız/çok düşükse, aynı ülkenin dilinde ikinci deneme + PDF vurgusu
+    if (score is None) or (score <= 2.0) or ("Bilinmiyor" in (text or "")):
+        cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
+        fix = (
+            "\n\nEK KISIT: Öncelik dil: " + cfg["lang_label"] +
+            ". 'pdf' sonuçlarını aç ve kısa alıntı yap. Marka eşadlarını mutlaka tara. "
+            "Yerel kaynak yoksa İngilizce güvenilir kaynaklara ikincil öncelik ver."
+        )
+        text, score = _call_once(prompt + fix, use_web=use_web)
+
     return text, score

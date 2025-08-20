@@ -136,6 +136,7 @@ st.title("📂 CSV Dosyası Yükleme")
 uploaded_file = st.file_uploader("CSV dosyanızı yükleyin", type=["csv"])
 
 if uploaded_file is not None:
+    state = st.text_input("State")
     try:
         df = pd.read_csv(uploaded_file)
         st.success(f"✅ Yüklenen dosya: {uploaded_file.name}")
@@ -146,59 +147,78 @@ if uploaded_file is not None:
 # --- ek importlar (YENİ) ---
 import time, random
 from pathlib import Path
-
-# --- hafif throttle (YENİ) ---
-def _throttle(calls_per_minute=12):
-    key = "_last_llm_ts"
-    interval = 60.0 / calls_per_minute
-    last = st.session_state.get(key, 0.0)
-    now = time.time()
-    wait = (last + interval) - now
-    if wait > 0:
-        time.sleep(wait)
-    st.session_state[key] = time.time()
-
-# --- basit backoff sarmalayıcı (YENİ) ---
-def _backoff_call(fn, *args, **kwargs):
-    for i in range(6):  # max 6 deneme
-        try:
-            return fn(*args, **kwargs)
-        except Exception as e:
-            msg = str(e).lower()
-            if "rate limit" in msg or "429" in msg or "rate_limit_exceeded" in msg:
-                time.sleep(min(2**i, 30) + random.random())  # üstel + jitter
-            else:
-                raise
-    raise RuntimeError("Rate limit denemeleri tükendi")
+import io
 
 if uploaded_file is not None:
-    if st.button("Mail Dönüşümü Başlat"):
+    # --- en üstlerde bir kere: ---
 
-        res = df["Company"].apply(cold_call_cevir)           # Series of tuples
-        df[["report", "score"]] = pd.DataFrame(res.tolist(), index=df.index)
 
-        df['Soğuk Arama Gerçekleşti'] = pd.NaT
-        df['linkedin Eklendi'] = pd.NaT
+    # KeyError önlemek için:
+    if 'cold_call' not in st.session_state:
+        st.session_state['cold_call'] = None
 
-        st.session_state['cold_call'] = df[['Country', 'Company', 'Website', 'Company Phone', 'First Name', 'Last Name', 'Title', 'Departments', 'Corporate Phone', 'Person Linkedin Url',  'Email', 'report', 'score']]
+    # --- senin bloğunun yerine: ---
+    if uploaded_file is not None:
+        if st.button("Mail Dönüşümü Başlat"):
+            # Çıktı kolonlarını hazırla
+            if 'report' not in df.columns:
+                df['report'] = ""
+            if 'score' not in df.columns:
+                df['score'] = pd.NA
 
-    st.dataframe(st.session_state['cold_call'])
+            companies = df['Company'].fillna("").astype(str)
+            total = len(companies)
 
-    import io
+            # Görsel göstergeler
+            header_ph = st.empty()
+            row_msg_ph = st.empty()
+            prog = st.progress(0, text="Başlıyor…")
 
-if 'cold_call' in st.session_state:
-    #st.dataframe(st.session_state['cold_call'])
+            header_ph.info(f"Toplam {total} şirket işlenecek.")
 
-    # Excel'e yazmak için BytesIO buffer oluştur
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-        st.session_state['cold_call'].to_excel(writer, index=False, sheet_name='Emails')
-    output.seek(0)
+            for i, (idx, company_name) in enumerate(companies.items(), start=1):
+                if not company_name.strip():
+                    df.at[idx, 'report'] = "Şirket adı boş"
+                    df.at[idx, 'score'] = None
+                else:
+                    row_msg_ph.write(f"🔎 {i}/{total} — **{company_name}** işleniyor…")
+                    try:
+                        report, score = cold_call_cevir(company_name,state)
+                    except Exception as e:
+                        report, score = f"Hata: {e}", None
 
-    # Excel indirme butonu
-    st.download_button(
-        label="📥 Excel olarak indir",
-        data=output,
-        file_name="kontakt_listesi.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-    )
+                    df.at[idx, 'report'] = report
+                    df.at[idx, 'score'] = score
+
+                prog.progress(i/total, text=f"{i}/{total} tamamlandı")
+                st.toast(f"{company_name} ✓")
+                # (Opsiyonel) hız çok yüksekse mini bekleme:
+                # time.sleep(0.05)
+
+            # Diğer kolonlar
+            df['Soğuk Arama Gerçekleşti'] = pd.NaT
+            df['linkedin Eklendi'] = pd.NaT
+
+            # Session state'e yaz
+            st.session_state['cold_call'] = df[['Country', 'Company', 'Website', 'Company Phone',
+                                                'First Name', 'Last Name', 'Title', 'Departments',
+                                                'Corporate Phone', 'Person Linkedin Url', 'Email',
+                                                'report', 'score']]
+
+        # Varsa göster (butona basmadan önce KeyError olmasın)
+        if st.session_state['cold_call'] is not None:
+            st.dataframe(st.session_state['cold_call'])
+
+    # --- indirme bölümü aynı kalabilir, sadece korumalı erişim: ---
+    if st.session_state['cold_call'] is not None:
+        output = io.BytesIO()
+        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+            st.session_state['cold_call'].to_excel(writer, index=False, sheet_name='Emails')
+        output.seek(0)
+
+        st.download_button(
+            label="📥 Excel olarak indir",
+            data=output,
+            file_name="kontakt_listesi.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
