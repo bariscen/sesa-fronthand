@@ -194,3 +194,93 @@ def translator(text, target_lang="English"):
 
     response = llm.invoke(messages)
     return response.content.strip()
+
+
+from openai import OpenAI
+client = OpenAI()
+
+
+import re
+
+
+client = OpenAI()
+
+SCORE_RE = re.compile(r"Kısa cevap:\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10\b", re.IGNORECASE)
+
+def _extract_score(text: str):
+    """
+    Metindeki 'Kısa cevap: X/10' deseninden skoru (float) çeker.
+    Bulamazsa None döner.
+    """
+    m = SCORE_RE.search(text or "")
+    if not m:
+        return None
+    s = m.group(1).replace(",", ".")
+    try:
+        val = float(s)
+    except ValueError:
+        return None
+    # 0-10 aralığına kırp
+    return max(0.0, min(10.0, val))
+
+def cold_call_cevir(COMPANY_NAME: str):
+    PROMPT = """ROLE: Esnek ambalaj (flexible packaging) alanında kanıta-dayalı B2B araştırmacısın.
+
+GÖREV: "{COMPANY_NAME}" için webde (önce resmî site/marka sayfaları) kanıt topla ve aşağıdaki çıktıyı üret.
+- Web araması yap, 3–6 güvenilir kaynaktan veri çek. En az 1 kaynak resmî site olmalı.
+- Yalnızca sitede AÇIKÇA yazan şeyleri “kanıt” say. Sezgi/yorumları “Risk/Notlar”a yaz.
+- Tarihleri belirt (örn. "2020", "2023-05"). Yüzdeleri ve iddiaları kısa alıntıyla (≤20 kelime) destekle.
+- Plastik ambalaj kullanımı için paket formatları (pouch/doypack, lidding/top web, sachet), malzemeler (mono-PE/PP, recyclable, foil/EVOH/AlOx/SiOx), baskı (digital/gravure) ve sürdürülebilirlik ifadeleri aransın.
+- Yeterli kanıt yoksa "Bilinmiyor" de; uydurma yapma.
+
+ÇIKTI FORMATIN (Türkçe, aynen bu blok yapısı):
+1) Kısa cevap (tek paragraf):
+- "Evet./Hayır./Bilinmiyor." + Şirket adı + en güçlü 1–2 kanıt + (varsa) yıl/yüzde.
+- Örnek format:
+  Evet. {Şirket} ürünlerinde plastik ambalaj kullanıyor/kullandı. {YYYY}’de {kısa kanıt}. {YYYY}’de {kısa kanıt}.
+
+2) Kaynak etiketleri (yalın satırlar, kurum/etiket + isteğe bağlı dil/ülke):
+- Örnek: "Label PME+", "Foodwatch EN", "Reporterre", "Resmi site"
+
+3) Tek cümle öneri:
+- “İstersen, hangi formatları (doypack/pouch, lidding film, sachet) kullandıklarına dair kanıt arayıp hızlı bir özet de çıkarabilirim.”
+
+4) Skor:
+- "Kısa cevap: X/10 (iyi/eşleşme/orta/zayıf)"
+- Değerlendirme ölçütü: kategori uyumu, plastik/format kanıtı, malzeme & bariyer sinyalleri, sürdürülebilirlik hedefleri.
+  8–10: güçlü kanıt; 5–7: kısmi kanıt; 3–4: zayıf; 0–2: yok/çelişkili.
+
+5) Neden? (madde madde, her madde sonunda kısa kaynak etiketi)
+- Kategori uyumu: … [etiket]
+- Plastik kanıtı: … [etiket]
+- Sürdürülebilirlik/fırsat: … [etiket]
+
+6) Risk/Notlar (madde madde, varsa alternatif materyal/kağıt eğilimleri, belirsizlikler) [etiket]
+
+7) Kaynaklar (madde madde, "Etiket — URL" şeklinde):
+- Label PME+ — <url>
+- Foodwatch EN — <url>
+- Reporterre — <url>
+- Resmi site — <url>
+
+KURALLAR:
+- Tüm iddiaları kaynakla bağla; her maddeye en az bir etiket ekle.
+- Alıntıları "…" içinde ver ve kısa tut.
+- URL’leri “Kaynaklar” bölümünde ver; gövdede yalnız etiket kullan.
+- Kanıt tarihi eskiyse belirt; çelişki varsa uyar.
+- Çıktıda sadece belirtilen 7 blok olsun, fazladan açıklama yazma.
+"""
+    prompt = PROMPT.replace("{COMPANY_NAME}", COMPANY_NAME)
+
+    resp = client.responses.create(
+        model="gpt-4o",
+        tools=[{"type": "web_search"}],  # hesabında açıksa web araması yapar
+        input=[{
+            "role": "user",
+            "content": [{"type": "input_text", "text": prompt}]
+        }]
+    )
+
+    text = resp.output_text
+    score = _extract_score(text)  # float veya None
+    return text, score
