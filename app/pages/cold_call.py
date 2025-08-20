@@ -131,6 +131,23 @@ with st.container():
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+# ... mevcut importlar ...
+import io, datetime
+import pandas as pd
+import streamlit as st
+
+@st.cache_data(show_spinner=False)
+def df_to_xlsx_bytes(df_json: str) -> bytes:
+    """DataFrame'i (JSON, orient='split') XLSX bayta çevirir. Rerun'larda cache kullanılır."""
+    df = pd.read_json(df_json, orient="split")
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Emails")
+    return output.getvalue()
+
+
+
+
 st.title("📂 CSV Dosyası Yükleme")
 
 uploaded_file = st.file_uploader("CSV dosyanızı yükleyin", type=["csv"])
@@ -251,15 +268,19 @@ if uploaded_file is not None:
             st.dataframe(st.session_state['cold_call'])
 
     # --- indirme bölümü aynı kalabilir, sadece korumalı erişim: ---
-    if st.session_state['cold_call'] is not None:
-        output = io.BytesIO()
-        with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
-            st.session_state['cold_call'].to_excel(writer, index=False, sheet_name='Emails')
-        output.seek(0)
+    if st.session_state.get('cold_call') is not None:
+    # DF'i JSON'a çevir (cache için stabil girdi)
+        df_json = st.session_state['cold_call'].to_json(orient="split")
+
+        # Baytları sadece veri değişince üret (cache'li fonksiyon)
+        xlsx_bytes = df_to_xlsx_bytes(df_json)
+
+        # (Opsiyonel) session_state'te sakla
+        st.session_state['xlsx_bytes'] = xlsx_bytes
 
         st.download_button(
             label="📥 Excel olarak indir",
-            data=output,
+            data=xlsx_bytes,
             file_name="kontakt_listesi.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
