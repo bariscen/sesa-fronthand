@@ -1,144 +1,25 @@
-# streamlit_app.py  (veya sayfanızın .py dosyası)
+# streamlit_app.py
 
 import os, io, datetime, tempfile
 from pathlib import Path
 from typing import List
 import pandas as pd
 import streamlit as st
-import streamlit as st
-import numpy as np
-import pandas as pd
-import os
-from pathlib import Path
-import requests
-import time
-import pickle
-import matplotlib.pyplot as plt
-import seaborn as sns
-import streamlit as st
-import sys
 
+# ====== Ortam/anahtarlar (varsa diğer sayfalarda kullanılıyor) ======
 openai_api_key = st.secrets.get("OPENAI_API_KEY")
 langsmith_api_key = st.secrets.get("LANGSMITH_API_KEY")
 tavily_api_key = st.secrets.get("TAVILY_API_KEY")
-
-os.environ["OPENAI_API_KEY"] = openai_api_key
-os.environ["LANGSMITH_API_KEY"] = langsmith_api_key
-os.environ["TAVILY_API_KEY"] = tavily_api_key
-
-from langchain_openai import ChatOpenAI
-from langchain_community.tools.tavily_search import TavilySearchResults
-import PyPDF2
-
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
-os.environ["LANGSMITH_TRACING"] = "true"
-os.environ["LANGSMITH_PROJECT"] = "langchain-academy"
-
-
-
-
-### SIDE BAR KAPAMA BASLIYOR
-
-st.set_page_config(initial_sidebar_state="collapsed")
-
-st.markdown(
-    """
-<style>
-    [data-testid="collapsedControl"] {
-        display: none
-    }
-</style>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown("""
-    <style>
-    /* Menü (sidebar navigation) gizle */
-    section[data-testid="stSidebarNav"] {
-        display: none;
-    }
-    /* Sağ üstteki hamburger menü gizle */
-    button[title="Toggle sidebar"] {
-        display: none;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    #MainMenu {visibility: hidden;}
-    header {visibility: hidden;}
-    footer {visibility: hidden;}
-    </style>
-""", unsafe_allow_html=True)
-
-
-### SIDE BAR KAPAMA BİTTİ
-
-
-# Bu dosyanın bulunduğu dizin (app.py'nin dizini)
-current_dir = Path(__file__).parent.parent
-
-# row-data yolunu oluştur
-image_path_for_logo = current_dir.parent / "row-data" / "sesa-logo-80-new.png"
-
-# Logonun her sayfada gösterilmesi için session_state'e kaydet
-if 'logo_image_path' not in st.session_state:
-    st.session_state.logo_image_path = str(image_path_for_logo)
-
-# Ana sayfada logoyu göster (isteğe bağlı, sayfalarda da gösterebilirsin)
-st.image(st.session_state.logo_image_path, width=200)
-
-st.markdown("""
-    <style>
-    .stApp {
-        background-color: #d3d3d3; /* 1 ton açık gri */
-    }
-    </style>
-    """, unsafe_allow_html=True)
-
-st.markdown("""
-    <style>
-    div[data-testid="pazarlama_button"] button {
-        position: fixed !important;
-        top: 10px !important;
-        right: 10px !important;
-        background-color: #444444 !important;
-        color: #FFBF00 !important;
-        border-radius: 8px !important;
-        border: none !important;
-        padding: 12px 24px !important;
-        font-size: 18px !important;
-        font-weight: bold !important;
-        cursor: pointer !important;
-        z-index: 9999 !important;
-        transition: background-color 0.3s ease !important;
-    }
-    div[data-testid="pazarlama_button"] button:hover {
-        background-color: #555555 !important;
-        color: #FFBF00 !important;
-    }
-    </style>
-""", unsafe_allow_html=True)
-
-# SADECE bu button'a özel container (testid kullanılıyor)
-with st.container():
-    st.markdown('<div data-testid="pazarlama_button">', unsafe_allow_html=True)
-    if st.button("Pazarlama Menüsüne Dön", key="pazarlama"):
-        st.switch_page("pages/page2.py")
-    st.markdown("</div>", unsafe_allow_html=True)
-
+if openai_api_key: os.environ["OPENAI_API_KEY"] = openai_api_key
+if langsmith_api_key: os.environ["LANGSMITH_API_KEY"] = langsmith_api_key
+if tavily_api_key: os.environ["TAVILY_API_KEY"] = tavily_api_key
 
 # --- OpenAI tarafını kullanan kendi fonksiyonun ---
-# (Aynen senin yazdığın/eklediğin modul)
 from app.gpt import cold_call_cevir
 
 # ===================== Session State INIT =====================
 if 'cold_call' not in st.session_state:
     st.session_state['cold_call'] = None
-if 'running' not in st.session_state:
-    st.session_state['running'] = False
 if 'progress_i' not in st.session_state:
     st.session_state['progress_i'] = 0
 if 'country_default' not in st.session_state:
@@ -198,6 +79,31 @@ def df_to_xlsx_bytes(df_json: str) -> bytes:
         df.to_excel(writer, index=False, sheet_name="Emails")
     return output.getvalue()
 
+def _merge_autosave_into_df(df: pd.DataFrame, saved: pd.DataFrame):
+    """Autosave içeriğini aktif df'ye bindir. Başlangıç indexini (işlenmiş satır sayısı) döndürür."""
+    df = df.copy()
+    if len(saved) == len(df):
+        for col in ["report","score"]:
+            if col in saved.columns:
+                df[col] = saved[col]
+    elif "Company" in saved.columns and "Company" in df.columns:
+        carry_cols = ["Company"] + [c for c in ["report","score"] if c in saved.columns]
+        carry = saved[carry_cols].drop_duplicates("Company")
+        df = df.merge(carry, on="Company", how="left", suffixes=("", "_saved"))
+        if "report_saved" in df.columns:
+            df["report"] = df["report"].where(df["report"].notna(), df["report_saved"])
+            df.drop(columns=["report_saved"], inplace=True)
+        if "score_saved" in df.columns:
+            df["score"] = df["score"].where(df["score"].notna(), df["score_saved"])
+            df.drop(columns=["score_saved"], inplace=True)
+    # kaç satır işlenmiş?
+    processed = df.get("report")
+    if processed is None:
+        start_i = 0
+    else:
+        start_i = int(processed.astype(str).str.strip().str.len().gt(0).sum())
+    return df, start_i
+
 # ===================== UI =====================
 st.set_page_config(page_title="B2B Research", initial_sidebar_state="collapsed")
 st.title("📂 CSV Dosyası Yükleme")
@@ -226,16 +132,19 @@ if uploaded_file is not None:
         st.warning(f"Geçersiz ülke kodu: {raw_country}. {country_box} kullanılacak.")
     st.session_state["country_default"] = country_code
 
-    # Autosave var mı? Devam / Temizle
+    # === AUTOSAVE VARSA DEVAM ET / TEMİZLE ===
+    resume_now = False
     if AUTO_CSV.exists():
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("▶ Devam et (autosave)"):
+            if st.button("▶ Devam Et (autosave)"):
                 try:
                     df_saved = pd.read_csv(AUTO_CSV)
-                    st.session_state['cold_call'] = df_saved
-                    st.session_state['progress_i'] = len(df_saved)
-                    st.success("Autosave yüklendi. Aşağıda görüntüleme/indirme aktif.")
+                    df, start_i = _merge_autosave_into_df(df, df_saved)
+                    st.session_state['cold_call'] = df
+                    st.session_state['progress_i'] = start_i
+                    st.success(f"Autosave yüklendi. Başlangıç: {start_i}.")
+                    resume_now = True
                 except Exception as e:
                     st.error(f"Autosave okunamadı: {e}")
         with c2:
@@ -248,21 +157,27 @@ if uploaded_file is not None:
                 except Exception as e:
                     st.warning(f"Autosave silinemedi: {e}")
 
-    # Çalıştırma butonu
-    if st.button("Mail Dönüşümü Başlat"):
+    # ==== İşlem Başlat / Devam Et ====
+    run_now = st.button("Mail Dönüşümü Başlat") or resume_now
+
+    if run_now:
         if "Company" not in df.columns:
             st.error("CSV'de 'Company' kolonu yok.")
             st.stop()
 
         # Çıktı kolonları
-        if 'report' not in df.columns: df['report'] = ""
-        if 'score'  not in df.columns: df['score']  = pd.NA
+        if "report" not in df.columns: df["report"] = ""
+        if "score"  not in df.columns: df["score"]  = pd.NA
 
         companies = df["Company"].fillna("").astype(str)
         total = len(companies)
 
-        st.session_state['running'] = True
-        start_i = st.session_state.get('progress_i', 0)  # kaldığın yerden
+        # Kaldığın yer: autosave'den geldiyse state'te, yoksa mevcut rapor doluluğuna göre hesapla
+        start_i = int(st.session_state.get("progress_i", 0))
+        if start_i == 0:
+            start_i = int(df["report"].astype(str).str.strip().str.len().gt(0).sum())
+        st.session_state["progress_i"] = start_i
+
         base_cols = ["Country","Company","Website","Company Phone",
                      "First Name","Last Name","Title","Departments",
                      "Corporate Phone","Person Linkedin Url","Email"]
@@ -272,48 +187,53 @@ if uploaded_file is not None:
         prog = st.progress(0.0, text=f"{start_i}/{total} başlıyor…")
         header_ph.info(f"Toplam {total} şirket işlenecek. Başlangıç: {start_i}")
 
-        AUTOSAVE_EVERY = 5  # her 5 satırda ara-kayıt
+        AUTOSAVE_EVERY = 5
+
+        # Hali hazırda işlenmiş satırları atla
+        already = df["report"].astype(str).str.strip().str.len().gt(0)
 
         try:
             for i, (idx, company_name) in enumerate(companies.items(), start=1):
-                if i <= start_i:
-                    continue  # daha önce işlenenleri atla
+                if already.loc[idx]:
+                    if i % 50 == 0:
+                        prog.progress(i/total, text=f"{i}/{total} (işlenmişleri atlıyorum)")
+                    continue
 
                 if not company_name.strip():
-                    df.at[idx, 'report'] = "Şirket adı boş"
-                    df.at[idx, 'score'] = None
+                    df.at[idx, "report"] = "Şirket adı boş"
+                    df.at[idx, "score"]  = None
                 else:
-                    # Satıra özel ülke kodu
+                    # satıra özel ülke kodu
                     row_country = resolve_row_country(df, idx, st.session_state.get("country_default","EN"))
                     row_msg_ph.write(f"🔎 {i}/{total} — **{company_name}** ({row_country}) işleniyor…")
                     try:
-                        # Cache'li çağrı (aynı firma+ülke tekrarlanırsa)
                         report, score = call_with_cache(company_name, row_country)
                     except Exception as e:
                         report, score = f"Hata: {e}", None
 
-                    df.at[idx, 'report'] = report
-                    df.at[idx, 'score']  = score
+                    df.at[idx, "report"] = report
+                    df.at[idx, "score"]  = score
 
-                # İlerleme & durum
-                st.session_state['progress_i'] = i
-                prog.progress(i/total, text=f"{i}/{total} tamamlandı")
+                # ilerleme
+                st.session_state["progress_i"] += 1
+                prog.progress(st.session_state["progress_i"]/total,
+                              text=f"{st.session_state['progress_i']}/{total} tamamlandı")
                 st.toast(f"{company_name} ✓")
 
-                # Ara-kayıt (session + disk)
-                st.session_state['cold_call'] = safe_subset(df, base_cols + ["report","score"])
-                if i % AUTOSAVE_EVERY == 0 or i == total:
+                # ara-kayıt: session + disk
+                st.session_state["cold_call"] = safe_subset(df, base_cols + ["report","score"])
+                if (st.session_state["progress_i"] % AUTOSAVE_EVERY == 0) or (st.session_state["progress_i"] == total):
                     try:
-                        st.session_state['cold_call'].to_csv(AUTO_CSV, index=False, encoding="utf-8")
+                        st.session_state["cold_call"].to_csv(AUTO_CSV, index=False, encoding="utf-8")
                         with pd.ExcelWriter(AUTO_XLSX, engine="xlsxwriter") as w:
-                            st.session_state['cold_call'].to_excel(w, index=False, sheet_name="Emails")
+                            st.session_state["cold_call"].to_excel(w, index=False, sheet_name="Emails")
                         st.toast("💾 Autosave")
                     except Exception:
                         pass
 
             st.success("✅ Tamamlandı.")
         finally:
-            st.session_state['running'] = False
+            pass
 
 # ===================== Görüntüleme & İndirme (UPLOAD BLOĞU DIŞINDA) =====================
 if st.session_state.get('cold_call') is not None:
