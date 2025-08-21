@@ -239,6 +239,10 @@ def _merge_autosave_into_df(df: pd.DataFrame, saved: pd.DataFrame):
 
 
 # ==== TEK FİRMA HIZLI TEST (token dostu) ====
+import openai, inspect
+st.caption(f"openai version: {getattr(openai,'__version__','bilinmiyor')}")
+st.caption(f"openai path: {getattr(openai,'__file__','bilinmiyor')}")
+
 st.subheader("🔍 Tek Firma Hızlı Test")
 with st.form("single_company_test"):
     c1, c2 = st.columns([2,1])
