@@ -237,6 +237,80 @@ def _merge_autosave_into_df(df: pd.DataFrame, saved: pd.DataFrame):
         start_i = int(processed.astype(str).str.strip().str.len().gt(0).sum())
     return df, start_i
 
+
+# ==== TEK FİRMA HIZLI TEST (token dostu) ====
+st.subheader("🔍 Tek Firma Hızlı Test")
+with st.form("single_company_test"):
+    c1, c2 = st.columns([2,1])
+    with c1:
+        single_name = st.text_input("Firma adı", placeholder="Örn: Daco France")
+    with c2:
+        # allowed ve country_default yukarıda tanımlı (kodu zaten içeriyor)
+        single_country = st.selectbox(
+            "Ülke/Lokal (ara dili)",
+            allowed,
+            index=allowed.index(st.session_state.get('country_default', 'EN'))
+        )
+    run_single = st.form_submit_button("Çalıştır (tek firma)")
+
+if run_single:
+    if not single_name.strip():
+        st.warning("Firma adını gir.")
+    else:
+        with st.spinner("Araştırılıyor…"):
+            try:
+                # mevcut cache'li çağrıyı kullanalım → aynı firma tekrarında token yemez
+                report, score = call_with_cache(single_name, single_country)
+                st.session_state['single_report'] = report
+                st.session_state['single_score'] = score
+                st.session_state['single_name'] = single_name
+                st.session_state['single_country'] = single_country
+            except Exception as e:
+                st.session_state['single_report'] = f"Hata: {e}"
+                st.session_state['single_score'] = None
+                st.session_state['single_name'] = single_name
+                st.session_state['single_country'] = single_country
+
+# Sonucu göster + indirme seçenekleri
+if st.session_state.get('single_report'):
+    nm = st.session_state.get('single_name', 'Firma')
+    cc = st.session_state.get('single_country', 'EN')
+    sc = st.session_state.get('single_score', None)
+
+    st.markdown("**Skor:**")
+    st.metric(label=f"{nm} · {cc}", value=f"{sc if sc is not None else '—'}/10")
+
+    st.text_area("Rapor (7 blok)", st.session_state['single_report'], height=420)
+
+    # TXT indirme
+    st.download_button(
+        label="📄 TXT indir (tek firma)",
+        data=st.session_state['single_report'].encode("utf-8"),
+        file_name=f"{nm.replace(' ','_')}_report.txt",
+        mime="text/plain",
+        key="single_txt_dl",
+    )
+
+    # Excel indirme (tek satır)
+    single_df = pd.DataFrame([{
+        "Country": cc,
+        "Company": nm,
+        "report": st.session_state['single_report'],
+        "score": sc
+    }])
+    df_json_single = single_df.to_json(orient="split")
+    xlsx_bytes_single = df_to_xlsx_bytes(df_json_single)
+    st.download_button(
+        label="📥 Excel indir (tek firma)",
+        data=xlsx_bytes_single,
+        file_name=f"{nm.replace(' ','_')}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        key="single_xlsx_dl",
+    )
+
+# ==== (ALTTAKİ CSV BÖLÜMÜNÜZ AYNEN DEVAM EDER) ====
+
+
 # ===================== UI =====================
 st.set_page_config(page_title="B2B Research", initial_sidebar_state="collapsed")
 st.title("📂 CSV Dosyası Yükleme")
