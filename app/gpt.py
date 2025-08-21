@@ -196,30 +196,24 @@ def translator(text, target_lang="English"):
     return response.content.strip()
 
 
-# app/gpt.py
-# -*- coding: utf-8 -*-
-"""
-Cold-call research helper for flexible packaging.
-Two-stage pipeline:
-  1) HARVEST: collect web sources as JSON
-  2) SYNTH: synthesize the 7-block Turkish report from those sources
-
-Designed for OpenAI Python SDK >= 1.0; uses Responses API.
-No 'response_format', no 'seed'. Optional web_search tool is toggleable.
-"""
-
-from __future__ import annotations
-import re, json
-from typing import Optional, Dict, List, Any, Tuple
 from openai import OpenAI
-
-# ---------- Client ----------
 client = OpenAI()
 
-# Toggle this if your account does/doesn't have the 'web_search' tool:
-USE_WEB_SEARCH_TOOL_DEFAULT = True  # set False if your org lacks the tool
 
-# ---------- Score parser ----------
+import re
+
+
+import re
+from typing import Optional, Dict, List
+from openai import OpenAI
+
+import re, json
+from typing import Optional, Dict, List, Any
+from openai import OpenAI
+
+client = OpenAI()
+
+# --- Skor yakalama ---
 SCORE_RE = re.compile(r"Kısa cevap:\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10\b", re.I)
 def _extract_score(text: str) -> Optional[float]:
     m = SCORE_RE.search(text or "")
@@ -232,7 +226,7 @@ def _extract_score(text: str) -> Optional[float]:
     except Exception:
         return None
 
-# ---------- Region/Lang config ----------
+# --- Bölgesel kısayollar ---
 REGION_CFG: Dict[str, Dict[str, List[str]]] = {
     "FR":{"lang":"FR","kw":["emballage plastique","sachet","doypack","film plastique","lidding","mono-PE","mono-PP","recyclable","EVOH","AlOx","SiOx","barrière"],
           "indep":["label-pmeplus.fr","foodwatch.org","reporterre.net","openfoodfacts.org","packagingeurope.com"]},
@@ -250,233 +244,190 @@ REGION_CFG: Dict[str, Dict[str, List[str]]] = {
           "indep":["openfoodfacts.org","packagingeurope.com","packaginginsights.com"]},
 }
 
-# ---------- System/Human templates (concise, “think more” via planning cue) ----------
+# --- Aşama 1: Kaynak topla (JSON) ---
+SOURCES_SCHEMA = {
+  "name":"PkgSources",
+  "schema": {
+    "type":"object",
+    "properties":{
+      "official":{"type":"string", "description":"Şirketin resmî web sitesi alan adı (ör. example.com)"},
+      "items":{
+        "type":"array",
+        "items":{
+          "type":"object",
+          "properties":{
+            "url":{"type":"string"},
+            "title":{"type":"string"},
+            "site_type":{"type":"string","enum":["official","independent"]},
+            "date":{"type":"string","description":"YYYY veya YYYY-MM-DD gibi"},
+            "quote":{"type":"string","description":"<=20 kelimelik kısa alıntı"}
+          },
+          "required":["url","site_type"]
+        }
+      }
+    },
+    "required":["items"]
+  },
+  "strict": True
+}
 
-HARVEST_SYS = (
-    "You are a senior web researcher. If a search tool is available, use it actively.\n"
-    "Goal: collect EVIDENCE for {COMPANY} on flexible plastic packaging.\n"
-    "Rules:\n"
-    "- First, find the official site; then 2–4 independent sources.\n"
-    "- Discover brand/alias pages (about/qui sommes nous/über uns/brands).\n"
-    "- Prefer PDFs; extract a ≤20-word short quote including YEAR/PERCENT when present.\n"
-    "- Only count as evidence what is explicitly written on the page.\n"
-    "- OUTPUT: return **one single-line valid JSON** only; no fences, no extra text.\n"
-    '- JSON schema: {"official":"<domain or empty>","items":[{"url":"...","site_type":"official|independent","date":"YYYY or empty","quote":"<=20 words"}]}\n'
-    "- No placeholder URLs. No fabrication.\n"
-    "Plan silently: (1) find official domain (2) collect 3–6 strongest sources (3) pull quote+year (4) output JSON."
-)
-
-HARVEST_USER = (
-    "COMPANY: {COMPANY}\n"
-    "LANG/COUNTRY: {LANG}\n\n"
-    "Search hints:\n"
-    '1) "{COMPANY}" site:*.com OR site:*.{TLD} ("about" OR "qui sommes" OR "über" OR "brands") → official\n'
-    '2) "{COMPANY}" (packaging OR emballage OR sustainability OR environment)\n'
-    '3) "{COMPANY}" (doypack OR pouch OR sachet OR "lidding film" OR "film plastique")\n'
-    '4) "{MAIN_TOKEN}" (brand OR marque OR marke) (packaging OR emballage)\n'
-    '5) "{COMPANY}" site:openfoodfacts.org\n'
-    '6) ("{COMPANY}" OR "{MAIN_TOKEN}") site:{INDEP}\n\n'
-    "Local keywords: {KW_HINT}\n\n"
-    'Return **one single-line JSON** only, e.g. {"official":"example.com","items":[{"url":"https://example.com/...","site_type":"official","date":"2023","quote":"…"}]}'
-)
-
-SYNTH_SYS = (
-    "You are a senior B2B analyst for flexible packaging. USE ONLY the provided sources. "
-    "Do not show your chain of thought; only the final 7 blocks.\n"
-    "Rules:\n"
-    "- Base every claim on the given sources (official + independent).\n"
-    '- Support claims with short quotes (“…”) and year/percent; put URLs ONLY in block 7.\n'
-    "- Focus signals: formats (pouch/doypack, lidding, sachet), materials (mono-PE/PP, recyclable, EVOH/AlOx/SiOx), printing (digital/gravure), sustainability.\n"
-    '- If evidence is weak, say “Bilinmiyor”; never invent.\n'
-    "- Exactly 7 blocks; Turkish output.\n"
-    "Plan silently: (1) split official/independent (2) pick 1–2 strongest proofs (3) extract YEAR/QUOTE (4) compute 0–10 score "
-    "(category fit, evidence strength, material/barrier signal, sustainability) (5) write the 7 blocks.\n"
-)
-
-SYNTH_USER = (
-    "ŞİRKET: {COMPANY}\n"
-    "DİL/ÜLKE: {LANG}\n\n"
-    "KAYNAK LİSTESİ (yalnız bunları kullan):\n"
-    "{SOURCES_PACK}\n\n"
-    "ÇIKTIYI Türkçe ve tam şu blok yapısında üret:\n\n"
-    "1) Kısa cevap (tek paragraf):\n"
-    '- "Evet./Hayır./Bilinmiyor." + Şirket adı + en güçlü 1–2 kanıt + yıl/yüzde.\n\n'
-    "2) Kaynak etiketleri:\n"
-    '- Örn: "Resmi site", "Label PME+", "Foodwatch", "Reporterre", "Open Food Facts", "Packaging Europe"\n\n'
-    "3) Tek cümle öneri:\n"
-    ' - “İstersen, hangi formatları (doypack/pouch, lidding film, sachet) kullandıklarına dair kanıt arayıp hızlı bir özet de çıkarabilirim.”\n\n'
-    "4) Skor:\n"
-    '- "Kısa cevap: X/10 (iyi/eşleşme/orta/zayıf)"\n\n'
-    "5) Neden? (madde madde, her madde sonunda [etiket])\n"
-    "- Kategori uyumu: … [etiket]\n"
-    "- Plastik kanıtı: … [etiket]\n"
-    "- Sürdürülebilirlik/fırsat: … [etiket]\n\n"
-    "6) Risk/Notlar (madde madde) [etiket]\n\n"
-    '7) Kaynaklar (madde madde, "Etiket — URL"):\n'
-    "- Etiket — URL\n"
-    "- Etiket — URL\n"
-    "- Etiket — URL\n"
-)
-
-# ---------- Low-level helpers ----------
-
-def _first_json_obj(text: str) -> Optional[dict]:
-    """Extract the first {...} JSON object from plain text."""
-    if not text:
-        return None
-    s = text.find("{")
-    e = text.rfind("}")
-    if s == -1 or e == -1 or e <= s:
-        return None
-    try:
-        return json.loads(text[s:e+1])
-    except Exception:
-        return None
-
-def _dedupe_items(items: List[dict]) -> List[dict]:
-    seen, out = set(), []
-    for it in items or []:
-        url = (it or {}).get("url","").strip()
-        if not url or url in seen:
-            continue
-        seen.add(url)
-        out.append(it)
-    return out
-
-def _build_sources_pack(items: List[dict], limit: int = 10) -> str:
-    lines: List[str] = []
-    for it in (items or [])[:limit]:
-        url = (it.get("url","") or "").strip()
-        title = (it.get("title","") or "").strip()
-        site_type = (it.get("site_type","") or "").strip()
-        date = (it.get("date","") or "").strip()
-        quote = (it.get("quote","") or "").strip()
-        lines.append(f"- [{site_type}] {title} — {url} — {date} — “{quote}”")
-    return "\n".join(lines) if lines else "NONE"
-
-def _responses_call(messages: List[dict], *, temperature=0.2, max_output_tokens=1400, use_web=True) -> str:
-    """Thin wrapper around client.responses.create. Safe defaults; optional web_search tool."""
-    params: Dict[str, Any] = {
-        "model": "gpt-4o",
-        "temperature": temperature,
-        "max_output_tokens": max_output_tokens,
-        "input": messages,
-    }
-    if use_web and USE_WEB_SEARCH_TOOL_DEFAULT:
-        params["tools"] = [{"type": "web_search"}]
-        params["tool_choice"] = "auto"
-    resp = client.responses.create(**params)
-    return getattr(resp, "output_text", None) or ""
-
-# ---------- Stage 1: HARVEST ----------
-
-def _harvest_sources(company: str, country: str, use_web: bool = True) -> Dict[str, Any]:
+def _source_harvest_prompt(company: str, country: str) -> str:
     cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
-    lang = cfg["lang"]
-    kw_hint = ", ".join(cfg["kw"][:6])
-    indep_domains = " OR site:".join(cfg["indep"])
-    tld = country.lower()
+    kw = ", ".join(cfg["kw"][:6])
+    indep = ", ".join(cfg["indep"][:4])
+    main_token = company.split()[0]
 
-    sys_msg = HARVEST_SYS.format(COMPANY=company)
-    usr_msg = HARVEST_USER.format(
-        COMPANY=company,
-        LANG=lang,
-        TLD=tld,
-        MAIN_TOKEN=company.split()[0],
-        INDEP=indep_domains,
-        KW_HINT=kw_hint,
+    return f"""
+ROLE: Web araştırmacısı.
+GOAL: Aşağıdaki sorgularla kaynak topla ve JSON döndür (şema verildi). Gerçek URL ver; placeholder kullanma.
+
+COMPANY: {company}
+LANG/COUNTRY: {cfg['lang']}
+SEARCH QUERIES (çalıştır):
+1) "{company}" site:*.com OR site:*.{country.lower()}  ("about" OR "notre" OR "qui sommes" OR "über")  -> OFFICIAL
+2) "{company}" packaging OR "emballage" OR "sustainability" OR "environment"
+3) "{main_token}" brand OR "marque" OR "marke"  packaging OR "emballage"
+4) "{company}" doypack OR pouch OR "sachet" OR "lidding" OR "film plastique"
+5) "{company}" site:openfoodfacts.org
+6) ("{company}" OR "{main_token}") site:{indep.replace(',', ' OR site:')}
+
+RESULT RULES:
+- En az 1 "official" ve en az 2 "independent" kayıt ver.
+- PDF varsa aç ve <=20 kelime kısa alıntı çek ("…").
+- "quote" alanında tarih/yüzde gibi en kuvvetli kanıtı ver.
+- Dönüş sadece JSON olsun (şema: PkgSources).
+"""
+
+def _harvest_sources(company: str, country: str) -> Dict[str, Any]:
+    prompt = _source_harvest_prompt(company, country)
+    resp = client.responses.create(
+        model="gpt-4o",
+        tools=[{"type":"web_search"}],
+        tool_choice="auto",
+        temperature=0.1,
+        max_output_tokens=1200,
+        response_format={"type":"json_schema","json_schema":SOURCES_SCHEMA},
+        input=[{"role":"user","content":[{"type":"input_text","text":prompt}]}]
     )
+    try:
+        data = json.loads(resp.output[0].content[0].text)
+    except Exception:
+        data = {"items":[]}
 
-    messages = [
-        {"role": "system", "content": [{"type": "input_text", "text": sys_msg}]},
-        {"role": "user",   "content": [{"type": "input_text", "text": usr_msg}]},
-    ]
-    text = _responses_call(messages, temperature=0.15, max_output_tokens=1200, use_web=use_web)
-    data = _first_json_obj(text) or {"items":[]}
+    # Yetersizse daha agresif ikinci tarama
+    need_retry = True
+    if data.get("items"):
+        types = [it.get("site_type") for it in data["items"] if isinstance(it, dict)]
+        if "official" in types and types.count("independent") >= 2:
+            need_retry = False
 
-    # Minimal adequacy check
-    items = _dedupe_items(data.get("items") or [])
-    has_official = any((it.get("site_type") == "official") for it in items)
-    indep_count = sum(1 for it in items if it.get("site_type") == "independent")
-
-    if not has_official or indep_count < 2:
-        # Second pass: more aggressive nudge (PDF, alias, local terms)
-        extra_user = (
-            usr_msg +
-            "\n\nSECOND PASS:\n- Prioritize PDFs; re-check brand/alias pages; prefer local-language queries (FR/DE/ES/IT/TR as relevant). "
-            "Return one JSON line. At least 1 official + 2 independent."
+    if need_retry:
+        fix = "\n\n2nd PASS: PDF öncelikli tara; marka/alias olasılıklarını dene (örn. tüketici markası), FR/DE/ES/IT/TR lokal kelimelerle yeniden ara. En az 1 official + 2 independent şart."
+        resp2 = client.responses.create(
+            model="gpt-4o",
+            tools=[{"type":"web_search"}],
+            tool_choice="auto",
+            temperature=0.1,
+            max_output_tokens=1400,
+            response_format={"type":"json_schema","json_schema":SOURCES_SCHEMA},
+            input=[{"role":"user","content":[{"type":"input_text","text":prompt + fix}]}]
         )
-        messages2 = [
-            {"role": "system", "content": [{"type": "input_text", "text": sys_msg}]},
-            {"role": "user",   "content": [{"type": "input_text", "text": extra_user}]},
-        ]
-        text2 = _responses_call(messages2, temperature=0.1, max_output_tokens=1400, use_web=use_web)
-        data2 = _first_json_obj(text2) or {"items":[]}
-        # Merge
-        merged = {}
-        for it in (items + (data2.get("items") or [])):
-            url = (it or {}).get("url","").strip()
-            if url and url not in merged:
-                merged[url] = it
-        official = data.get("official") or data2.get("official") or ""
-        data = {"official": official, "items": list(merged.values())}
+        try:
+            data2 = json.loads(resp2.output[0].content[0].text)
+            # basit birleştirme
+            if data.get("items") and data2.get("items"):
+                merged = {it["url"]:it for it in data.get("items",[])+data2.get("items",[])}
+                data = {"official": data.get("official") or data2.get("official"), "items": list(merged.values())}
+            elif data2.get("items"):
+                data = data2
+        except Exception:
+            pass
 
-    data["items"] = _dedupe_items(data.get("items") or [])
     return data
 
-# ---------- Stage 2: SYNTHESIZE ----------
-
-def _synthesize_report(company: str, country: str, sources: Dict[str, Any], use_web: bool = False) -> Tuple[str, Optional[float]]:
+# --- Aşama 2: Sentez (7 blok) ---
+def _synthesize_prompt(company: str, country: str, sources: Dict[str, Any]) -> str:
     cfg = REGION_CFG.get(country.upper(), REGION_CFG["EN"])
-    lang = cfg["lang"]
+    # Kaynak paketini düz metin olarak enjekte et
+    lines = []
+    official = sources.get("official") or ""
+    for it in sources.get("items", [])[:10]:
+        url = it.get("url","")
+        title = it.get("title","")
+        site_type = it.get("site_type","")
+        date = it.get("date","")
+        quote = it.get("quote","")
+        lines.append(f"- [{site_type}] {title} — {url} — {date} — “{quote}”")
+    pack = "\n".join(lines) if lines else "NONE"
 
-    pack = _build_sources_pack(sources.get("items", []), limit=10)
-    sys_msg = SYNTH_SYS
-    usr_msg = SYNTH_USER.format(COMPANY=company, LANG=lang, SOURCES_PACK=pack)
+    return f"""
+ROLE: Esnek ambalaj B2B analisti.
+COUNTRY/LANG: {cfg['lang']}
+COMPANY: {company}
+OFFICIAL_HINT: {official or 'unknown'}
 
-    messages = [
-        {"role": "system", "content": [{"type": "input_text", "text": sys_msg}]},
-        {"role": "user",   "content": [{"type": "input_text", "text": usr_msg}]},
-    ]
-    text = _responses_call(messages, temperature=0.15, max_output_tokens=1500, use_web=use_web)
+USE ONLY THESE SOURCES (below) for evidence. Do NOT invent:
+{pack}
+
+Write the answer in **Turkish** with exactly these 7 blocks and nothing else:
+
+1) Kısa cevap (tek paragraf):
+- "Evet./Hayır./Bilinmiyor." + Şirket adı + en güçlü 1–2 kanıt + yıl/yüzde (varsa).
+
+2) Kaynak etiketleri:
+- Örn: "Resmi site", "Label PME+", "Foodwatch", "Reporterre", "Open Food Facts", "Packaging Europe"
+
+3) Tek cümle öneri:
+- “İstersen, hangi formatları (doypack/pouch, lidding film, sachet) kullandıklarına dair kanıt arayıp hızlı bir özet de çıkarabilirim.”
+
+4) Skor:
+- "Kısa cevap: X/10 (iyi/eşleşme/orta/zayıf)"
+
+5) Neden? (madde madde, her madde sonunda [etiket])
+- Kategori uyumu: … [etiket]
+- Plastik kanıtı: … [etiket]
+- Sürdürülebilirlik/fırsat: … [etiket]
+
+6) Risk/Notlar (madde madde) [etiket]
+
+7) Kaynaklar (madde madde, "Etiket — URL"):
+- Etiket — URL
+
+KURALLAR:
+- Her iddiayı YUKARIDAKİ kaynaklardan birine dayandır ve etiketle.
+- Alıntıları "…" içinde kısa ver; URL’leri sadece 7. blokta yaz.
+- Kanıt yetersizse “Bilinmiyor” de (uydurma yapma).
+"""
+
+def cold_call_cevir(company_name: str, country: str = "EN"):
+    """
+    İki aşamalı (ARA→SENTEZ) güvenilir akış.
+    Dönüş: (text, score)
+    """
+    # 1) Kaynak topla
+    src = _harvest_sources(company_name, country)
+
+    # 2) Kaynaklarla 7 blok sentez
+    syn_prompt = _synthesize_prompt(company_name, country, src)
+    resp = client.responses.create(
+        model="gpt-4o",
+        temperature=0.1,
+        max_output_tokens=1400,
+        input=[{"role":"user","content":[{"type":"input_text","text": syn_prompt}]}]
+    )
+    text = resp.output_text
     score = _extract_score(text)
-    return text, score
 
-# ---------- Public entrypoint ----------
-
-def cold_call_cevir(company_name: str, country: str = "EN", use_web: bool = True) -> Tuple[str, Optional[float]]:
-    """
-    Main entry. Returns (report_text, score_float|None).
-    - company_name: e.g., "Daco France"
-    - country: one of FR/DE/UK/ES/IT/TR/EN (EN is default)
-    - use_web: True to enable web_search tool if your org has it
-    """
-    # Stage 1: harvest sources
-    src = _harvest_sources(company_name, country, use_web=use_web)
-
-    # Stage 2: synthesize report
-    text, score = _synthesize_report(company_name, country, src, use_web=False)
-
-    # Safety second pass if too weak
+    # 3) Çok zayıfsa bir kez daha (ek ipucu: PDF/yerel dil/marka)
     if (score is None) or (score <= 2.0) or ("Bilinmiyor" in (text or "")):
-        # Push the model to lean into PDFs/locals/alias again, but without changing API params
-        nudged_pack = ( _build_sources_pack(src.get("items", []), limit=14) or "NONE" ) + \
-                      "\n- [note] Re-check PDF/brand pages; prefer local-language quotes where available."
-        usr_msg = SYNTH_USER.format(COMPANY=company_name, LANG=REGION_CFG.get(country.upper(), REGION_CFG["EN"])["lang"], SOURCES_PACK=nudged_pack)
-        messages = [
-            {"role": "system", "content": [{"type": "input_text", "text": SYNTH_SYS}]},
-            {"role": "user",   "content": [{"type": "input_text", "text": usr_msg}]},
-        ]
-        text = _responses_call(messages, temperature=0.1, max_output_tokens=1600, use_web=False)
+        nudge = syn_prompt + "\n\nEK NOT: PDF ve yerel dil sayfalarına odaklan; tüketici markası/alias ihtimalini tekrar tara; en az 3 kaynak göster."
+        resp2 = client.responses.create(
+            model="gpt-4o",
+            temperature=0.1,
+            max_output_tokens=1500,
+            input=[{"role":"user","content":[{"type":"input_text","text": nudge}]}]
+        )
+        text = resp2.output_text
         score = _extract_score(text)
 
     return text, score
-
-
-# ---------- Optional: quick manual test ----------
-if __name__ == "__main__":
-    name = "Daco France"
-    out, sc = cold_call_cevir(name, country="FR", use_web=USE_WEB_SEARCH_TOOL_DEFAULT)
-    print("\n=== REPORT ===\n")
-    print(out)
-    print("\n=== SCORE ===\n", sc)
