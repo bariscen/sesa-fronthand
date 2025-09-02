@@ -90,12 +90,12 @@ div.stButton > button {
 col1, col2, col3 = st.columns(3)
 
 with col1:
-    if st.button("🧬 Cold Email ve Cold Call Oluştur"):
+    if st.button("🧬 Tekli Email Oluştur"):
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/paz_mail.py")
 
 with col2:
-    if st.button("📿 Çoklu Cold Email ve Cold Call Oluştur"):
+    if st.button("📿 Çoklu Cold Email"):
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/paz_mail_coklu.py")
 
@@ -104,7 +104,7 @@ with col3:
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/paz_ic_gazete.py")
 # --- 2 Buton Altta ---
-col4, col5 = st.columns(2)
+col4, col5, col6 = st.columns(3)
 
 with col4:
     if st.button("💾 Likedin İçerik Üretimi"):
@@ -116,7 +116,13 @@ with col5:
         with st.spinner("Sayfa yükleniyor..."):
             st.switch_page("pages/cold_call.py")
 
-            
+
+with col6:
+    if st.button("📰 Otomatik Mail"):
+        with st.spinner("Sayfa yükleniyor..."):
+            st.switch_page("pages/otomatik.py")
+
+
 
 
 

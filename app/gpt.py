@@ -10,40 +10,68 @@ import PyPDF2
 from langchain.schema import HumanMessage, SystemMessage
 
 
+
+
+
+
+
+
+
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 os.environ["LANGSMITH_API_KEY"] = st.secrets["LANGSMITH_API_KEY"]
 os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
 
+
+
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
+import google.generativeai as genai
+
+
+
+os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+gemini_key = st.secrets["GEMINI_API_KEY"]
+model_gemini = genai.GenerativeModel('gemini-1.5-pro-latest')
+
+
+
+
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7)
 
 
-def get_observation(company_info: str) -> str:
+def get_observation(company_info: str, state: str, website: str, target_sector: str) -> str:
     messages = [
         SystemMessage(content="""
 You are a research-oriented business analyst and B2B cold email strategist. Your role is to extract the most insightful, strategic observation from real company data.
 """),
         HumanMessage(content=f"""
-Using the company data below, generate a short and insightful paragraph (2–3 sentences) that:
+Please conduct research on {company_info} based in {state} to understand its core business, market position, and strategy. You may use local-language sources for your research to gain the deepest insights.
 
-- Demonstrates a deep understanding of the company's **position**, **strategy**, or **market**
+Based on your findings, generate a single, concise English paragraph (2-3 sentences) that provides a strategic observation about the company.
 
-- Don't mention any dates.
-- Is grounded strictly in the data — no guesses or assumptions
-
-Do NOT write an email. Just return the observation paragraph, like a strategist or business analyst would.
+Your observation must:
+- Demonstrate a deep understanding of the company's **position**, **strategy**, **market**, or **operations**.
+- Be strictly grounded in the data you find—do not make assumptions or guesses.
+- Not mention any specific dates.
+- Be analytical and professional, like a business analyst would write.
+- **Do NOT** write an email.
 
 Company Information:
-{company_info}
+- Company Name: {company_info}
+- State: {state}
+- Target Sector: {target_sector}
+- Website: {website}
 """)
     ]
+    try:
+        response = model_gemini.generate_content(messages)
+        return response.text.strip()
+    except Exception as e:
+        return f"Hata(get_observation): {e}"
 
-   # - Can reference packaging, innovation, growth, hiring, product focus, operations, or industry dynamics
-
-    response = llm(messages)
-    return response.content.strip()
 
 def extract_state(State):
     prompt = f"""
@@ -197,74 +225,81 @@ def translator(text, target_lang="English"):
 
 
 from openai import OpenAI
+import re
 
 client = OpenAI()
 
-def cold_call_cevir(company_name: str, country: str = "EN"):
+import re
+from openai import OpenAI
+
+client = OpenAI()
+
+def cold_call_cevir(company_name: str, country: str = "EN", website: str = None, sector: str = None):
     """
     Esnek ambalaj firması için verilen şirketin potansiyel müşteri olup olmadığını analiz eder.
-    Geriye analiz metni ve 10 üzerinden puan döner.
+    Sadece OpenAI kullanır. Geriye analiz metni ve 10 üzerinden puan döner.
     """
 
+    site_info = f'The official website of the company is: {website}' if website else 'There is no official website provided.'
+
     prompt = f"""
-ROLE: You are a strategic B2B analyst and sales prospecting expert for a flexible packaging company based in Europe.
+You are a senior B2B market analyst working for a flexible packaging manufacturer in Europe. Your task is to assess whether the company "{company_name}" located in "{country}" in {sector} sector could be a good potential customer for flexible packaging products (e.g., doypacks, lidding films, pouches).
 
-TASK: Assess whether the following company is a good B2B prospect (potential customer) for flexible packaging solutions.
+{site_info}
 
-INPUT COMPANY: "{company_name}"
-COUNTRY: "{country}"
+Flexible packaging is typically used in food, cosmetics, pet food, homecare, personal care, detergents, supplements, and healthcare.
 
-OUTPUT FORMAT (must follow exactly):
+All research, analysis, and output MUST be done in the native language of {country}. This includes visiting the company's {website}, reading their product and about-us pages, and analyzing packaging clues.
+
+If the website is not available or inaccessible, clearly state that and rely only on known industry signals.
+
+Answer in the following format:
 
 1) Short answer (1 paragraph):
-- Start with “Yes./No./Unknown.” depending on evidence.
-- Explain your reasoning clearly and briefly, based only on web evidence.
-- Include strongest 1–2 facts (sector, packaging type, growth, etc.).
+- Visit their website and describe what the company does.
+- Check their product pages to see if flexible packaging is visible or likely.
+- Check the about-us or corporate section to see if they own brands or are resellers.
 
 2) Score (on a 10-point scale):
-- "Score: X/10 (excellent/good/moderate/weak)"
-- Criteria:
-   • Sector fit (food, personal care, pet, etc.)
-   • Packaging use (clear need for pouches, sachets, lidding, etc.)
-   • Decision complexity (size, structure, HQ)
-   • Market maturity & sustainability relevance
+- Format: "Score: X/10 (excellent/good/moderate/weak)"
+- Important: Output the score exactly in this format.
 
 3) Why? (bullet points)
 - Sector alignment
 - Packaging indicators
 - Sustainability or sourcing opportunity
-- Strategic clues (recent change, rebrand, expansion, etc.)
+- Strategic clues (growth, innovation, product line, etc.)
+- **Production/Filling Activities:** Does the company manufacture or fill its own products? This indicates a direct need for packaging.
+- **Import/Export Activities:** Does the company engage in international trade? This can signal a need for high-quality, durable packaging suitable for transport.
 
-4) Key risks / limitations (bullet points)
-- Unknown packaging type
+4) Risks / unknowns (bullet points)
+- Packaging needs unclear?
 - Outsourced production?
-- Existing long-term supplier?
+- Lack of market signals?
 
-5) Final recommendation (1 sentence):
-- Should we try to contact this company? Why or why not?
+5) Final recommendation (1 sentence)
 
-NOTES:
-- Use ONLY evidence-based reasoning. No speculation.
-- If packaging type is unknown, flag it.
-- Mention if the company is in a growth phase or changing packaging trends.
+Rules:
+- Do NOT make up information. If info is unclear, say so.
+- Use industry knowledge.
+- Do not use placeholder URLs or fake evidence.
+- Stay concise and structured.
+
+
+6) Yazdığın cevabın hepsini Türkçeye çevir ve öyle ver, yazının orjinalini verme.
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o",
-        messages=[{"role": "user", "content": prompt}],
-        temperature=0.1,
-    )
+    # Gemini API çağrısı
+    response = model_gemini.generate_content(prompt)
+    text = response.text
 
-    text = response.choices[0].message.content.strip()
-
-    # Skor çıkar
-    import re
-    match = re.search(r"Score:\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10", text)
+    # Extract score
     score = None
+    match = re.search(r"(Score|Puan)[:：]?\s*([0-9]+(?:[.,][0-9]+)?)\s*/\s*10", text, re.IGNORECASE)
     if match:
         try:
-            score = float(match.group(1).replace(",", "."))
-        except:
+            score = float(match.group(2).replace(",", "."))
+        except ValueError:
             pass
 
     return text, score

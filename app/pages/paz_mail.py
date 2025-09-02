@@ -13,9 +13,12 @@ from app.function import read_gcs_blob_content
 from app.gpt import get_observation, extract_sector, rag, referans, generate_better_email, create_personalized_email
 
 
+
 os.environ["OPENAI_API_KEY"] = st.secrets["OPENAI_API_KEY"]
 os.environ["LANGSMITH_API_KEY"] = st.secrets["LANGSMITH_API_KEY"]
 os.environ["TAVILY_API_KEY"] = st.secrets["TAVILY_API_KEY"]
+
+
 
 from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
@@ -123,7 +126,7 @@ with st.container():
         st.switch_page("pages/page2.py")
     st.markdown("</div>", unsafe_allow_html=True)
 
-import streamlit as st
+
 
 # Title
 st.title("Cold Mail ve Cold Call Üreticisine Hoşgeldin")

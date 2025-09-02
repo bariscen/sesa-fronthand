@@ -3,6 +3,10 @@ import pickle # .pkl dosyalarını okumak için gerekli
 import os
 import streamlit as st
 import json
+from google.cloud import storage
+from google.cloud.exceptions import NotFound
+import pandas as pd
+import io
 
 
 def get_gcs_client():
@@ -46,7 +50,7 @@ def read_gcs_blob_content(blob_key: str):
     """
     # secrets.toml'dan kova adını ve blob adını çek
     try:
-        bucket_name = st.secrets.GCS_BUCKET_NAME
+        bucket_name = st.secrets.get("GCS_BUCKET_NAME")
         blob_name = st.secrets[blob_key]
         #st.info(f"Kova adı: {bucket_name}, Blob adı: {blob_name}")
     except KeyError as e:
@@ -77,16 +81,65 @@ def read_gcs_blob_content(blob_key: str):
         return None
 
 
-
-
 def saving_gcs(model_path):
-    BUCKET_NAME = os.environ["BUCKET_NAME"]
-    model_filename = model_path.name
+    BUCKET_NAME = st.secrets.get("GCS_BUCKET_NAME")
+    if not BUCKET_NAME:
+        st.error("GCS_BUCKET_NAME, secrets.toml'da tanımlı değil.")
+        return None
 
-    client = storage.Client()
+    # get_gcs_client fonksiyonunu çağırarak istemciyi alın
+    client = get_gcs_client()
+    if client is None:
+        st.error("GCS istemcisi oluşturulamadı.")
+        return None
+
+    model_filename = model_path.name
     bucket = client.bucket(BUCKET_NAME)
     blob = bucket.blob(f"{model_filename}")
     blob.upload_from_filename(str(model_path))
 
-    print("😅 Model saved!")
+    # print yerine st.success kullanın
+    st.success("😅 Dosya başarıyla GCS'e kaydedildi!")
     return None
+
+
+
+@st.cache_data(ttl=600) # GCS'ten indirilen veriyi 10 dakika cache'le
+def download_gcs_csv_as_df(bucket_name, source_blob_name):
+    """GCS'ten bir CSV dosyasını indirir ve pandas DataFrame olarak döndürür."""
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(source_blob_name)
+
+        # Dosyayı byte olarak indir
+        content = blob.download_as_bytes()
+
+        # Byte verisini DataFrame'e çevir
+        df = pd.read_csv(io.BytesIO(content))
+        st.info(f"☁️ Mevcut dosya '{source_blob_name}' GCS'ten yüklendi. {len(df)} satır bulundu.")
+        return df
+    except NotFound:
+        st.warning(f"'{source_blob_name}' dosyası GCS'te bulunamadı. Yeni bir dosya oluşturulacak.")
+        return None
+    except Exception as e:
+        st.error(f"GCS'ten dosya indirilirken hata oluştu: {e}")
+        return None
+
+def upload_df_to_gcs_csv(bucket_name, df, destination_blob_name):
+    """Bir pandas DataFrame'ini GCS'ye CSV olarak yükler."""
+    try:
+        storage_client = storage.Client()
+        bucket = storage_client.bucket(bucket_name)
+        blob = bucket.blob(destination_blob_name)
+
+        # DataFrame'i CSV formatında bir string'e dönüştür
+        csv_data = df.to_csv(index=False)
+
+        # String veriyi GCS'ye yükle
+        blob.upload_from_string(csv_data, 'text/csv')
+        st.success(f"✅ Veri başarıyla '{destination_blob_name}' olarak GCS'ye yüklendi. Toplam {len(df)} satır.")
+        return True
+    except Exception as e:
+        st.error(f"GCS'ye yükleme sırasında hata oluştu: {e}")
+        return False

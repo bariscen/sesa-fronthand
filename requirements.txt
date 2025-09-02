@@ -15,4 +15,7 @@ PyPDF2
 xlsxwriter
 wikipedia
 ipython
-openai>=1.42.0,<2.0
+openai
+google-generativeai
+googleapis-common-protos
+google-api-core

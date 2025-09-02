@@ -36,15 +36,20 @@ from langchain_openai import ChatOpenAI
 from langchain_community.tools.tavily_search import TavilySearchResults
 import PyPDF2
 
-llm = ChatOpenAI(model="gpt-4o", temperature=0)
+llm = ChatOpenAI(model="gpt-4o", temperature=0.3)
 os.environ["LANGSMITH_TRACING"] = "true"
 os.environ["LANGSMITH_PROJECT"] = "langchain-academy"
 
+import google.generativeai as genai
+os.environ["GEMINI_API_KEY"] = st.secrets["GEMINI_API_KEY"]
+
+genai.configure(api_key=os.environ["GEMINI_API_KEY"])
+
+gemini_key = st.secrets["GEMINI_API_KEY"]
+model_gemini = genai.GenerativeModel('gemini-1.5-pro-latest')
 
 
 
-
-sektor_ulke = read_gcs_blob_content("sesa1")
 
 ### SIDE BAR KAPAMA BASLIYOR
 
@@ -195,13 +200,15 @@ def safe_subset(df: pd.DataFrame, cols: List[str]) -> pd.DataFrame:
     present = [c for c in cols if c in df.columns]
     return df[present]
 
-def call_with_cache(name: str, country: str):
-    key = (name.strip().lower(), country)
+
+def call_with_cache(name: str, country: str, website: str = None, sector: str = None):
+    key = (name.strip().lower(), country, (website or "").strip().lower(), (sector or "").strip().lower())
     if key in st.session_state['cc_cache']:
         return st.session_state['cc_cache'][key]
-    out = cold_call_cevir(name, country=country)
+    out = cold_call_cevir(name, country=country, website=website, sector=sector)
     st.session_state['cc_cache'][key] = out
     return out
+
 
 @st.cache_data(show_spinner=False)
 def df_to_xlsx_bytes(df_json: str) -> bytes:
@@ -238,23 +245,29 @@ def _merge_autosave_into_df(df: pd.DataFrame, saved: pd.DataFrame):
     return df, start_i
 
 
-# ==== TEK FİRMA HIZLI TEST (token dostu) ====
+# streamlit_app.py (SEKTÖR EKLENDİ)
+
+# ... (diğer importlar ve ayarlar aynı kalır)
+
+
+# === GÜNCELLENEN TEK FİRMA TEST FORMU ===
 import openai, inspect
-st.caption(f"openai version: {getattr(openai,'__version__','bilinmiyor')}")
-st.caption(f"openai path: {getattr(openai,'__file__','bilinmiyor')}")
 
 st.subheader("🔍 Tek Firma Hızlı Test")
 with st.form("single_company_test"):
-    c1, c2 = st.columns([2,1])
+    c1, c2, c3 = st.columns([3,2,3])
     with c1:
         single_name = st.text_input("Firma adı", placeholder="Örn: Daco France")
     with c2:
-        # allowed ve country_default yukarıda tanımlı (kodu zaten içeriyor)
         single_country = st.selectbox(
             "Ülke/Lokal (ara dili)",
             allowed,
             index=allowed.index(st.session_state.get('country_default', 'EN'))
         )
+    with c3:
+        single_website = st.text_input("Web sitesi (opsiyonel)", placeholder="https://example.com")
+
+    single_sector = st.text_input("Sektör (opsiyonel)", placeholder="Gıda, Kozmetik, vb.")
     run_single = st.form_submit_button("Çalıştır (tek firma)")
 
 if run_single:
@@ -263,26 +276,33 @@ if run_single:
     else:
         with st.spinner("Araştırılıyor…"):
             try:
-                # mevcut cache'li çağrıyı kullanalım → aynı firma tekrarında token yemez
-                report, score = call_with_cache(single_name, single_country)
-                st.session_state['single_report'] = report
-                st.session_state['single_score'] = score
-                st.session_state['single_name'] = single_name
+                report, score = call_with_cache(single_name, single_country, single_website, single_sector)
+                st.session_state['single_report']  = report
+                st.session_state['single_score']   = score
+                st.session_state['single_name']    = single_name
                 st.session_state['single_country'] = single_country
+                st.session_state['single_website'] = single_website
+                st.session_state['single_sector']  = single_sector
             except Exception as e:
-                st.session_state['single_report'] = f"Hata: {e}"
-                st.session_state['single_score'] = None
-                st.session_state['single_name'] = single_name
+                st.session_state['single_report']  = f"Hata: {e}"
+                st.session_state['single_score']   = None
+                st.session_state['single_name']    = single_name
                 st.session_state['single_country'] = single_country
+                st.session_state['single_website'] = single_website
+                st.session_state['single_sector']  = single_sector
 
 # Sonucu göster + indirme seçenekleri
 if st.session_state.get('single_report'):
     nm = st.session_state.get('single_name', 'Firma')
     cc = st.session_state.get('single_country', 'EN')
     sc = st.session_state.get('single_score', None)
+    wb = st.session_state.get('single_website', '')
 
     st.markdown("**Skor:**")
     st.metric(label=f"{nm} · {cc}", value=f"{sc if sc is not None else '—'}/10")
+
+    if wb:
+        st.caption(f"Web sitesi: {wb}")
 
     st.text_area("Rapor (7 blok)", st.session_state['single_report'], height=420)
 
@@ -299,6 +319,7 @@ if st.session_state.get('single_report'):
     single_df = pd.DataFrame([{
         "Country": cc,
         "Company": nm,
+        "Website": wb,
         "report": st.session_state['single_report'],
         "score": sc
     }])
@@ -312,52 +333,112 @@ if st.session_state.get('single_report'):
         key="single_xlsx_dl",
     )
 
-# ==== (ALTTAKİ CSV BÖLÜMÜNÜZ AYNEN DEVAM EDER) ====
+# --- Gerisi değişmedi ---
 
-
+# --- Gerisi değişmedi ---
 # ===================== UI =====================
 st.set_page_config(page_title="B2B Research", initial_sidebar_state="collapsed")
 st.title("📂 CSV Dosyası Yükleme")
 
 uploaded_file = st.file_uploader("CSV dosyanızı yükleyin", type=["csv"])
+if uploaded_file is None and AUTO_CSV.exists():
+    uploaded_file = AUTO_CSV
+
 
 if uploaded_file is not None:
-    # CSV oku + önizleme
     try:
-        df = pd.read_csv(uploaded_file)
+        if isinstance(uploaded_file, Path):
+            with open(uploaded_file, "rb") as f:
+                content = f.read()
+        else:
+            content = uploaded_file.read()
+
+        df = pd.read_csv(io.BytesIO(content))
+
+        df = pd.read_csv(io.BytesIO(content))
+        st.success(f"✅ Yüklenen dosya: {uploaded_file.name}")
+        st.dataframe(df)
     except Exception as e:
         st.error(f"❌ CSV okunurken hata: {e}")
         st.stop()
 
-    st.success(f"✅ Yüklenen dosya: {uploaded_file.name}")
-    st.dataframe(df)
+# Eğer autosave varsa ve kullanıcı 'Devam Et' dedi ise
+elif st.session_state.get("resume_now", False):
+    df = st.session_state.get("cold_call", None)
+
+# Hâlâ df yoksa
+    if df is None:
+        st.warning("Veri yüklenemedi. Lütfen CSV dosyası yükleyin veya autosave ile devam edin.")
+        st.stop()
+        st.success(f"✅ Yüklenen dosya: {uploaded_file.name}")
+        st.dataframe(df)
 
     # Ülke/lokal seçimi (genel varsayılan)
-    colA, colB = st.columns([1,1])
-    with colA:
-        country_box = st.selectbox("Ülke/Lokal (ara dili)", allowed, index=allowed.index(st.session_state['country_default']))
-    with colB:
-        raw_country = st.text_input("Ülke kodu (opsiyonel, örn: FR/DE/UK/ES/IT/TR/EN)", value="")
-    country_code = normalize_country_code(raw_country) or country_box
-    if raw_country and not normalize_country_code(raw_country):
-        st.warning(f"Geçersiz ülke kodu: {raw_country}. {country_box} kullanılacak.")
-    st.session_state["country_default"] = country_code
+  # Ülke/lokal ve sektör seçimi (genel varsayılan)
+colA, colB = st.columns([1, 1])
+
+with colA:
+    country_box = st.selectbox("Ülke/Lokal (ara dili)", allowed, index=allowed.index(st.session_state['country_default']))
+
+with colB:
+    raw_country = st.text_input("Ülke kodu (opsiyonel, örn: FR/DE/UK/ES/IT/TR/EN)", value="")
+
+
+default_sector = st.session_state.get("sector_default", "")
+sector_input = st.text_input("Sektör (opsiyonel)", value=default_sector, placeholder="Gıda, Kozmetik, vb.")
+
+# Ülke kodunu normalize et
+country_code = normalize_country_code(raw_country) or country_box
+if raw_country and not normalize_country_code(raw_country):
+    st.warning(f"Geçersiz ülke kodu: {raw_country}. {country_box} kullanılacak.")
+
+# Session state güncelle
+st.session_state["country_default"] = country_code
+st.session_state["sector_default"] = sector_input
+
 
     # === AUTOSAVE VARSA DEVAM ET / TEMİZLE ===
-    resume_now = False
-    if AUTO_CSV.exists():
+resume_now = False
+if AUTO_CSV.exists():
         c1, c2 = st.columns(2)
         with c1:
-            if st.button("▶ Devam Et (autosave)"):
-                try:
-                    df_saved = pd.read_csv(AUTO_CSV)
-                    df, start_i = _merge_autosave_into_df(df, df_saved)
-                    st.session_state['cold_call'] = df
-                    st.session_state['progress_i'] = start_i
-                    st.success(f"Autosave yüklendi. Başlangıç: {start_i}.")
-                    resume_now = True
-                except Exception as e:
-                    st.error(f"Autosave okunamadı: {e}")
+                if st.button("▶ Devam Et (autosave)", key="resume_btn"):
+                    try:
+                        df_saved = pd.read_csv(AUTO_CSV)
+                        df_main = st.session_state.get("cold_call")  # None olabilir
+
+                        if df_main is None:
+                            # 🔑 Ana df yoksa direkt autosave'den devam et
+                            df_merged = df_saved.copy()
+                            last_idx = int(
+                                df_merged.get("report", pd.Series([""]*len(df_merged)))
+                                .astype(str).str.strip().str.len().gt(0).sum()
+                            )
+                        else:
+                            # Ana df varsa merge et
+                            df_merged, last_idx = _merge_autosave_into_df(df_main, df_saved)
+
+                        st.session_state['cold_call']       = df_merged
+                        st.session_state['progress_i']      = last_idx   # 🔑 kaldığın yer
+                        st.session_state['last_processed_index'] = last_idx
+                        st.session_state['resume_now']      = True
+                        st.rerun()
+                    except Exception as e:
+                        st.error(f"Autosave okunamadı: {e}")
+
+            # --- İşlem başlatıcı (KOLON BLOĞU DIŞINDA!) ---
+        run_now = st.session_state.get("resume_now", False)
+
+        if run_now:
+                st.session_state["resume_now"] = False  # bir kere çalışsın
+
+                if "cold_call" not in st.session_state or st.session_state["cold_call"] is None:
+                    st.warning("Çalıştırmak için veri seti (cold_call) yüklenmemiş.")
+                else:
+                    df = st.session_state["cold_call"]
+                    # burada senin işleme döngün başlasın (start_i = st.session_state['progress_i'] ile)
+
+
         with c2:
             if st.button("🗑 Autosave temizle"):
                 try:
@@ -369,17 +450,15 @@ if uploaded_file is not None:
                     st.warning(f"Autosave silinemedi: {e}")
 
     # ==== İşlem Başlat / Devam Et ====
-    run_now = st.button("Mail Dönüşümü Başlat") or resume_now
+run_now = st.button("Cold Call Dönüşümü") or st.session_state.get("resume_now", False)
 
-    if run_now:
-        if "Company" not in df.columns:
-            st.error("CSV'de 'Company' kolonu yok.")
-            st.stop()
 
-        # Çıktı kolonları
-        if "report" not in df.columns: df["report"] = ""
-        if "score"  not in df.columns: df["score"]  = pd.NA
-
+if run_now:
+  # ✅ Devam eden kodun düzgün girintide olması gerekiyor
+        if "report" not in df.columns:
+            df["report"] = ""
+        if "score" not in df.columns:
+            df["score"] = pd.NA
         companies = df["Company"].fillna("").astype(str)
         total = len(companies)
 
@@ -395,62 +474,82 @@ if uploaded_file is not None:
 
         header_ph = st.empty()
         row_msg_ph = st.empty()
-        prog = st.progress(0.0, text=f"{start_i}/{total} başlıyor…")
-        header_ph.info(f"Toplam {total} şirket işlenecek. Başlangıç: {start_i}")
+
+        unprocessed = df["report"].astype(str).str.strip().eq("")
+
+
 
         AUTOSAVE_EVERY = 5
 
         # Hali hazırda işlenmiş satırları atla
-        already = df["report"].astype(str).str.strip().str.len().gt(0)
+        # İşlenmemiş satırları filtrele (raporu boş olanlar)
+        unprocessed = df["report"].astype(str).str.strip().eq("")
 
-        try:
-            for i, (idx, company_name) in enumerate(companies.items(), start=1):
-                if already.loc[idx]:
-                    if i % 50 == 0:
-                        prog.progress(i/total, text=f"{i}/{total} (işlenmişleri atlıyorum)")
-                    continue
+        total = unprocessed.sum()  # toplam işlenecek satır sayısı
+        done = 0  # kaç satır işlendi
 
-                if not company_name.strip():
-                    df.at[idx, "report"] = "Şirket adı boş"
-                    df.at[idx, "score"]  = None
-                else:
-                    # satıra özel ülke kodu
-                    row_country = resolve_row_country(df, idx, st.session_state.get("country_default","EN"))
-                    row_msg_ph.write(f"🔎 {i}/{total} — **{company_name}** ({row_country}) işleniyor…")
-                    try:
-                        report, score = call_with_cache(company_name, row_country)
-                    except Exception as e:
-                        report, score = f"Hata: {e}", None
+                # Sadece işlenmemiş satırlarla döngüye gir
+        row_msg_ph = st.empty()  # dışarıda tanımlı olsun
 
-                    df.at[idx, "report"] = report
-                    df.at[idx, "score"]  = score
+        for i, idx in enumerate(df[unprocessed].index, start=1):
+            company_name = df.at[idx, "Company"]
 
-                # ilerleme
+            if not company_name.strip():
+                df.at[idx, "report"] = "Şirket adı boş"
+                df.at[idx, "score"] = None
+            else:
+                row_country = resolve_row_country(df, idx, st.session_state.get("country_default", "EN"))
+                row_sector = st.session_state.get("sector_default", "")
+                row_website = df.at[idx, "Website"] if "Website" in df.columns else None
+
+                # 🔁 GÜNCELLENEN SATIR:
+                row_msg_ph.write(f"🔎 {i}/{total} - {company_name} ({row_country}) işleniyor…")
+
+                try:
+                    report, score = call_with_cache(company_name, row_country, website=row_website, sector=row_sector)
+                except Exception as e:
+                    report, score = f"Hata: {e}", None
+
+                df.at[idx, "report"] = report
+                df.at[idx, "score"] = int(score) if score is not None else None
                 st.session_state["progress_i"] += 1
-                prog.progress(st.session_state["progress_i"]/total,
-                              text=f"{st.session_state['progress_i']}/{total} tamamlandı")
-                st.toast(f"{company_name} ✓")
-
-                # ara-kayıt: session + disk
-                st.session_state["cold_call"] = safe_subset(df, base_cols + ["report","score"])
-                if (st.session_state["progress_i"] % AUTOSAVE_EVERY == 0) or (st.session_state["progress_i"] == total):
+                if st.session_state["progress_i"] % AUTOSAVE_EVERY == 0 or i == total:
                     try:
+                        st.session_state["cold_call"] = safe_subset(df, base_cols + ["report", "score"])
                         st.session_state["cold_call"].to_csv(AUTO_CSV, index=False, encoding="utf-8")
                         with pd.ExcelWriter(AUTO_XLSX, engine="xlsxwriter") as w:
                             st.session_state["cold_call"].to_excel(w, index=False, sheet_name="Emails")
-                        st.toast("💾 Autosave")
-                    except Exception:
-                        pass
+                        st.toast("💾 Autosave kaydedildi.")
+                    except Exception as e:
+                        st.warning(f"Autosave hatası: {e}")
 
-            st.success("✅ Tamamlandı.")
-        finally:
-            pass
+
+
+
+        # İlerleme göstergesi
+        done = df["report"].astype(str).str.strip().ne("").sum()
+        prog = st.progress(0.0)
+        prog.progress(done / len(df), text=f"{done}/{len(df)} tamamlandı")
+        st.toast(f"{company_name} ✓")
+
+        # Ara kayıt (autosave)
+        st.session_state["cold_call"] = safe_subset(df, base_cols + ["report", "score"])
+        if done % AUTOSAVE_EVERY == 0 or done == len(df):
+            try:
+                st.session_state["cold_call"].to_csv(AUTO_CSV, index=False, encoding="utf-8")
+                with pd.ExcelWriter(AUTO_XLSX, engine="xlsxwriter") as w:
+                    st.session_state["cold_call"].to_excel(w, index=False, sheet_name="Emails")
+                st.toast("💾 Autosave")
+            except Exception:
+                pass
+
+        st.success("✅ Tamamlandı.")
 
 # ===================== Görüntüleme & İndirme (UPLOAD BLOĞU DIŞINDA) =====================
 if st.session_state.get('cold_call') is not None:
     st.dataframe(st.session_state['cold_call'])
 
-if st.session_state.get('cold_call') is not None:
+    # Excel indirme
     df_json = st.session_state['cold_call'].to_json(orient="split")
     xlsx_bytes = df_to_xlsx_bytes(df_json)
     st.download_button(
