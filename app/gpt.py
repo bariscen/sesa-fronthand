@@ -203,7 +203,12 @@ Here is the plain message to use:
 \"\"\"{message}\"\"\"
 
 Target language: {target_language if target_language else 'English'}
-Write like a avarage {target_language} human.
+ write it as if the writer is **not a native speaker but someone with English as a second language**:
+   - Use simple vocabulary and shorter sentences.
+   - Keep grammar correct but not too complex.
+   - Make it polite, clear, and human-like.
+
+
 Write the full email text only.
 
 """

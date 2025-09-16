@@ -493,6 +493,7 @@ if run_now:
 
         for i, idx in enumerate(df[unprocessed].index, start=1):
             company_name = df.at[idx, "Company"]
+            
 
             if not company_name.strip():
                 df.at[idx, "report"] = "Şirket adı boş"
